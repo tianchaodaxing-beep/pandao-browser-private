@@ -84,10 +84,10 @@ export async function updateAiTaskBoundary(
 ): Promise<AiTask> {
   const result = await getDbPool().query(
     `UPDATE ai_tasks
-     SET status = $2,
-         risk_level = $3,
+     SET status = $2::varchar,
+         risk_level = $3::varchar,
          approval_required = $4,
-         approved_at = CASE WHEN $2 = 'approved' THEN NOW() ELSE approved_at END
+         approved_at = CASE WHEN $2::text = 'approved' THEN NOW() ELSE approved_at END
      WHERE id = $1
      RETURNING ${aiTaskColumns}`,
     [taskId, status, riskLevel, approvalRequired]
