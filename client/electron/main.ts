@@ -6,6 +6,12 @@ import type {
   LockStatusResponse,
   LoginRequest,
   LoginResponse,
+  ProxyBatchRequest,
+  ProxyBatchResponse,
+  ProxyBindRequest,
+  ProxyBindResponse,
+  ProxyListResponse,
+  ProxyUnbindResponse,
   RefreshResponse,
   ShopCloseRequest,
   ShopListResponse,
@@ -15,7 +21,7 @@ import type {
 } from 'shared';
 import { registerActionRecorderHandlers } from './action-recorder/main-bridge.js';
 import { ApiRequestError, getShop, listShops } from './browser-engine/api-client.js';
-import { closeAllShopWindows, closeShop, openShop } from './browser-engine/window-manager.js';
+import { ShopProxyOpenError, closeAllShopWindows, closeShop, openShop } from './browser-engine/window-manager.js';
 
 app.setName('pandao-browser');
 app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
@@ -218,6 +224,35 @@ ipcMain.handle('admin.unlock', async (_event, keyBytes: number[]): Promise<Unloc
   return (await response.json()) as UnlockResponse;
 });
 
+ipcMain.handle('admin.listProxies', async (): Promise<ProxyListResponse> => {
+  return apiAuthedJson<ProxyListResponse>('/proxies', {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('admin.batchProxies', async (_event, request: ProxyBatchRequest): Promise<ProxyBatchResponse> => {
+  return apiAuthedJson<ProxyBatchResponse>('/proxies', {
+    method: 'POST',
+    body: JSON.stringify(request)
+  });
+});
+
+ipcMain.handle(
+  'admin.bindProxy',
+  async (_event, request: ProxyBindRequest & { proxyId: number }): Promise<ProxyBindResponse> => {
+    return apiAuthedJson<ProxyBindResponse>(`/proxies/${request.proxyId}/bind`, {
+      method: 'POST',
+      body: JSON.stringify({ shopId: request.shopId } satisfies ProxyBindRequest)
+    });
+  }
+);
+
+ipcMain.handle('admin.unbindProxy', async (_event, proxyId: number): Promise<ProxyUnbindResponse> => {
+  return apiAuthedJson<ProxyUnbindResponse>(`/proxies/${proxyId}/bind`, {
+    method: 'DELETE'
+  });
+});
+
 ipcMain.handle('shops.list', async (): Promise<ShopListResponse> => {
   return { shops: await listShops() };
 });
@@ -225,8 +260,12 @@ ipcMain.handle('shops.list', async (): Promise<ShopListResponse> => {
 ipcMain.handle('shops.open', async (_event, request: ShopOpenRequest): Promise<ShopOpenResponse> => {
   try {
     const shop = await getShop(request.shopId);
-    return openShop(shop);
+    return await openShop(shop);
   } catch (error) {
+    if (error instanceof ShopProxyOpenError) {
+      throw new Error(error.message);
+    }
+
     if (error instanceof ApiRequestError && error.status === 404) {
       dialog.showErrorBox('打开店铺失败', '店铺不存在或无权限');
       throw new Error('店铺不存在或无权限');

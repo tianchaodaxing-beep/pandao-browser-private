@@ -4,6 +4,11 @@ import type {
   AuthUser,
   LockStatusResponse,
   LoginRequest,
+  ProxyBatchRequest,
+  ProxyBatchResponse,
+  ProxyBindResponse,
+  ProxyListResponse,
+  ProxyUnbindResponse,
   ShopListResponse,
   ShopOpenResponse,
   UnlockResponse
@@ -20,6 +25,10 @@ declare global {
       admin: {
         lockStatus: () => Promise<LockStatusResponse>;
         unlock: (keyBytes: Uint8Array) => Promise<UnlockResponse>;
+        listProxies: () => Promise<ProxyListResponse>;
+        batchProxies: (request: ProxyBatchRequest) => Promise<ProxyBatchResponse>;
+        bindProxy: (proxyId: number, shopId: number) => Promise<ProxyBindResponse>;
+        unbindProxy: (proxyId: number) => Promise<ProxyUnbindResponse>;
       };
       shops: {
         list: () => Promise<ShopListResponse>;

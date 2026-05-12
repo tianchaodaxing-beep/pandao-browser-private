@@ -1,4 +1,4 @@
-import { BrowserWindow, session } from 'electron';
+import { BrowserWindow, dialog, session } from 'electron';
 import path from 'node:path';
 import type { Shop, ShopOpenResponse } from 'shared';
 import { scheduleActionRecorder } from '../action-recorder/scheduler.js';
@@ -8,8 +8,16 @@ import { isCredentialLoginUrl } from '../credential-fill/matcher.js';
 import { getCredentialFillSelector } from '../credential-fill/selectors.js';
 import { applyStealthSessionPolicy, injectStealth } from '../stealth/injector.js';
 import { defaultPlatformUrls } from './platform-urls.js';
+import { applyProxyToSession } from './proxy.js';
 
 const shopWindows = new Map<number, BrowserWindow>();
+
+export class ShopProxyOpenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ShopProxyOpenError';
+  }
+}
 
 function getShopPreloadPath() {
   return path.join(__dirname, 'preload-shop.js');
@@ -102,7 +110,7 @@ function scheduleCredentialFill(shopWindow: BrowserWindow, shop: Shop) {
   }, 200);
 }
 
-export function openShop(shop: Shop): ShopOpenResponse {
+export async function openShop(shop: Shop): Promise<ShopOpenResponse> {
   const existingWindow = getExistingShopWindow(shop.id);
 
   if (existingWindow) {
@@ -159,8 +167,18 @@ export function openShop(shop: Shop): ShopOpenResponse {
     scheduleActionRecorder(shopWindow, shop);
   });
 
-  // TODO[WO-007]: session.setProxy(...) for shop-bound proxy.
-  // TODO[WO-007]: handle proxy auth.
+  try {
+    await applyProxyToSession(shopSession, shop);
+  } catch (error) {
+    const message = `店铺 ${shop.name} 代理失败,请联系老板`;
+    console.log(`[shops] proxy failed for shop ${shop.id}: ${error instanceof Error ? error.message : String(error)}`);
+    shopWindows.delete(shop.id);
+    if (!shopWindow.isDestroyed()) {
+      shopWindow.destroy();
+    }
+    dialog.showErrorBox('代理失败', message);
+    throw new ShopProxyOpenError(message);
+  }
 
   if (process.env.NODE_ENV !== 'production') {
     shopWindow.webContents.openDevTools({ mode: 'detach' });

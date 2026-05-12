@@ -288,6 +288,29 @@ npm run dev:client
 3. 两个店铺的 canvas hash、WebGL renderer、UA、屏幕、时区等应按各自店铺固定值隔离。
 4. 关闭店铺窗口后重新打开，同一店铺指纹应保持不变。
 
+## WO-007 代理 IP 集成
+
+数据库迁移会创建 `proxies` 表,并给 `shops.proxy_id` 补上代理外键:
+
+```powershell
+cd F:\pandao-browser
+npm run migrate
+```
+
+老板端流程:
+
+1. 登录客户端并进入“代理 IP”。
+2. 手工录入代理,或导入 CSV: `provider,protocol,host,port,username,password,country,city`。
+3. 在代理列表中选择店铺并绑定;一个店铺固定一个代理。
+4. 解绑会同时清空 `proxies.bound_shop_id` 和 `shops.proxy_id`。
+
+店铺窗口流程:
+
+1. 打开有代理绑定的店铺时,主进程先读取 `/shops/:id/proxy`。
+2. Electron session 执行 `setProxy`,代理认证通过 `/shops/:id/proxy-credential` 临时读取。
+3. 访问 `http://api.ipify.org` 做 5 秒连通检查,通过后才加载店铺 URL。
+4. 没有绑定代理的店铺保持原流程。
+
 ## WO-008 操作日志与关键动作截图
 
 本地开发建议把截图数据放到 `.dev-data`，生产默认路径为 `C:\pandao-browser-server\data`:

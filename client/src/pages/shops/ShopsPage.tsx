@@ -62,6 +62,7 @@ export function ShopsPage() {
                   <p>
                     #{shop.id} · {shop.platform}
                     {shop.defaultUrl ? ` · ${shop.defaultUrl}` : ''}
+                    {shop.proxyId ? ` 路 代理 #${shop.proxyId}` : ' 路 未绑定代理'}
                   </p>
                 </div>
                 <div className="shop-card-actions">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AuthUser, LoginRequest } from 'shared';
 import { roleLabels } from './modules/auth/roleLabels';
+import { ProxiesPage } from './pages/admin/proxies/ProxiesPage';
 import { UnlockPage } from './pages/admin/unlock/UnlockPage';
 import { LoginPage } from './pages/login/LoginPage';
 import { ShopsPage } from './pages/shops/ShopsPage';
@@ -12,7 +13,7 @@ type AuthState =
 
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ state: 'loading' });
-  const [view, setView] = useState<'shops' | 'unlock'>('shops');
+  const [view, setView] = useState<'shops' | 'unlock' | 'proxies'>('shops');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -73,6 +74,8 @@ export function App() {
     return <LoginPage error={auth.error} loading={submitting} onLogin={handleLogin} />;
   }
 
+  const canManageProxies = auth.user.role === 'boss';
+
   return (
     <main className="app-shell">
       <section className="workspace">
@@ -89,12 +92,19 @@ export function App() {
             <button className={view === 'unlock' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('unlock')}>
               主密钥
             </button>
+            {canManageProxies ? (
+              <button className={view === 'proxies' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('proxies')}>
+                代理 IP
+              </button>
+            ) : null}
             <button className="secondary-button ghost" type="button" onClick={handleLogout}>
               退出登录
             </button>
           </div>
         </div>
-        {view === 'shops' ? <ShopsPage /> : <UnlockPage user={auth.user} onUnlocked={() => setView('shops')} />}
+        {view === 'shops' ? <ShopsPage /> : null}
+        {view === 'unlock' ? <UnlockPage user={auth.user} onUnlocked={() => setView('shops')} /> : null}
+        {view === 'proxies' && canManageProxies ? <ProxiesPage /> : null}
       </section>
     </main>
   );

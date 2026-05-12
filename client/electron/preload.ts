@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { LoginRequest, ShopCloseRequest, ShopOpenRequest } from 'shared';
+import type { LoginRequest, ProxyBatchRequest, ShopCloseRequest, ShopOpenRequest } from 'shared';
 
 contextBridge.exposeInMainWorld('pandao', {
   auth: {
@@ -9,7 +9,11 @@ contextBridge.exposeInMainWorld('pandao', {
   },
   admin: {
     lockStatus: () => ipcRenderer.invoke('admin.lockStatus'),
-    unlock: (keyBytes: Uint8Array) => ipcRenderer.invoke('admin.unlock', Array.from(keyBytes))
+    unlock: (keyBytes: Uint8Array) => ipcRenderer.invoke('admin.unlock', Array.from(keyBytes)),
+    listProxies: () => ipcRenderer.invoke('admin.listProxies'),
+    batchProxies: (request: ProxyBatchRequest) => ipcRenderer.invoke('admin.batchProxies', request),
+    bindProxy: (proxyId: number, shopId: number) => ipcRenderer.invoke('admin.bindProxy', { proxyId, shopId }),
+    unbindProxy: (proxyId: number) => ipcRenderer.invoke('admin.unbindProxy', proxyId)
   },
   shops: {
     list: () => ipcRenderer.invoke('shops.list'),

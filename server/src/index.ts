@@ -10,6 +10,7 @@ import { adminRoutes } from './modules/admin/routes.js';
 import { auditRoutes } from './modules/audit/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { credentialsRoutes, shopCredentialTokenRoutes } from './modules/credentials/routes.js';
+import { proxiesRoutes } from './modules/proxies/routes.js';
 import { shopsRoutes } from './modules/shops/routes.js';
 import { teamsRoutes } from './modules/teams/routes.js';
 import { usersRoutes } from './modules/users/routes.js';
@@ -28,6 +29,8 @@ export function buildServer() {
           'req.body.password',
           'req.body.action_payload',
           'req.body.actionPayload',
+          'req.body.rows.*.password',
+          '*.proxyPassword',
           'res.body.password',
           '*.password',
           '*.password.*'
@@ -68,6 +71,9 @@ export function buildServer() {
   });
   void app.register(shopCredentialTokenRoutes, {
     prefix: '/shops'
+  });
+  void app.register(proxiesRoutes, {
+    prefix: '/proxies'
   });
   void app.register(credentialsRoutes, {
     prefix: '/credentials'

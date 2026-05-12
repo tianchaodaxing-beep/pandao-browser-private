@@ -258,6 +258,80 @@ h1 {
   cursor: pointer;
 }
 
+.file-picker.compact {
+  margin-top: 0;
+}
+
+.proxy-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.proxy-form input,
+.proxy-form select,
+.data-table select {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid #cfd7e4;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #16202a;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.proxy-form button,
+.proxy-form .file-picker {
+  min-height: 38px;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+.data-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table th {
+  color: #526070;
+  font-weight: 700;
+}
+
+.inline-badge {
+  display: inline-flex;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #243447;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.table-actions {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .form-notice {
   margin: 14px 0 0;
   border-radius: 6px;
@@ -360,5 +434,9 @@ h1 {
   .shop-card-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .proxy-form {
+    grid-template-columns: 1fr;
   }
 }

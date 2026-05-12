@@ -3,6 +3,11 @@ import type { CredentialExchangeRequest } from 'shared';
 import { getActionSelectors } from '../audit/selectors.js';
 import { authenticateRequest } from '../auth/guards.js';
 import { requireKeystoreUnlocked } from '../keystore/guards.js';
+import {
+  ProxyServiceError,
+  getShopProxyCredentialForUser,
+  getShopProxyForUser
+} from '../proxies/service.js';
 import { getShopForUser, parsePositiveInt } from '../shops/service.js';
 import {
   CredentialServiceError,
@@ -15,6 +20,11 @@ type ShopParams = {
 };
 
 function sendCredentialError(reply: FastifyReply, error: unknown) {
+  if (error instanceof ProxyServiceError) {
+    reply.code(error.statusCode).send({ error: error.code, message: error.message });
+    return true;
+  }
+
   if (error instanceof CredentialServiceError) {
     reply.code(error.statusCode).send({ error: error.code, message: error.message });
     return true;
@@ -69,6 +79,58 @@ export async function shopCredentialTokenRoutes(app: FastifyInstance) {
     }
 
     return { selectors: getActionSelectors(shop.platform) };
+  });
+
+  app.get<{ Params: ShopParams }>('/:id/proxy', async (request, reply) => {
+    const user = await authenticateRequest(request, reply);
+
+    if (!user) {
+      return;
+    }
+
+    const shopId = parsePositiveInt(request.params.id);
+
+    if (!shopId) {
+      reply.code(404).send({ error: 'SHOP_NOT_FOUND', message: '店铺不存在' });
+      return;
+    }
+
+    try {
+      return { proxy: await getShopProxyForUser(user, shopId) };
+    } catch (error) {
+      if (!sendCredentialError(reply, error)) {
+        throw error;
+      }
+    }
+  });
+
+  app.get<{ Params: ShopParams }>('/:id/proxy-credential', async (request, reply) => {
+    const user = await authenticateRequest(request, reply);
+
+    if (!user) {
+      return;
+    }
+
+    await requireKeystoreUnlocked(request, reply);
+
+    if (reply.sent) {
+      return;
+    }
+
+    const shopId = parsePositiveInt(request.params.id);
+
+    if (!shopId) {
+      reply.code(404).send({ error: 'SHOP_NOT_FOUND', message: '店铺不存在' });
+      return;
+    }
+
+    try {
+      return await getShopProxyCredentialForUser(user, shopId);
+    } catch (error) {
+      if (!sendCredentialError(reply, error)) {
+        throw error;
+      }
+    }
   });
 }
 

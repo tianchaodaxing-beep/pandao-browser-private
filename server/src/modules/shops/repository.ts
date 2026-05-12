@@ -1,4 +1,5 @@
 import type { QueryResultRow } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { FingerprintConfig, Shop, ShopPlatform, ShopStatus } from 'shared';
 import { getDbPool } from '../../db/pool.js';
 import type { AuthUser } from '../auth/types.js';
@@ -186,5 +187,19 @@ export async function assignShopToUser(shopId: number, userId: number, grantedBy
        SET granted_by = EXCLUDED.granted_by,
            granted_at = NOW()`,
     [userId, shopId, grantedBy]
+  );
+}
+
+export async function updateShopProxyBinding(
+  shopId: number,
+  proxyId: number | null,
+  db: Pool | PoolClient = getDbPool()
+) {
+  await db.query(
+    `UPDATE shops
+     SET proxy_id = $2
+     WHERE id = $1
+       AND status = 'active'`,
+    [shopId, proxyId]
   );
 }
