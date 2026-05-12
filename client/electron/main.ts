@@ -1,0 +1,287 @@
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import type {
+  AuthUser,
+  LockStatusResponse,
+  LoginRequest,
+  LoginResponse,
+  RefreshResponse,
+  ShopCloseRequest,
+  ShopListResponse,
+  ShopOpenRequest,
+  ShopOpenResponse,
+  UnlockResponse
+} from 'shared';
+import { registerActionRecorderHandlers } from './action-recorder/main-bridge.js';
+import { ApiRequestError, getShop, listShops } from './browser-engine/api-client.js';
+import { closeAllShopWindows, closeShop, openShop } from './browser-engine/window-manager.js';
+
+app.setName('pandao-browser');
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
+registerActionRecorderHandlers();
+
+type StoredTokens = {
+  token: string;
+  refreshToken: string;
+};
+
+const API_BASE_URL =
+  process.env.PANDAO_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001';
+
+function getAuthFilePath() {
+  return path.join(app.getPath('userData'), 'auth.bin');
+}
+
+async function readStoredTokens(): Promise<StoredTokens | null> {
+  try {
+    const encrypted = await fs.readFile(getAuthFilePath());
+    return JSON.parse(safeStorage.decryptString(encrypted)) as StoredTokens;
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredTokens(tokens: StoredTokens) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('当前系统不可用 safeStorage，拒绝明文保存登录态。');
+  }
+
+  await fs.mkdir(path.dirname(getAuthFilePath()), { recursive: true });
+  await fs.writeFile(getAuthFilePath(), safeStorage.encryptString(JSON.stringify(tokens)));
+}
+
+async function clearStoredTokens() {
+  await fs.rm(getAuthFilePath(), { force: true });
+}
+
+async function apiJson<T>(urlPath: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${urlPath}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...init.headers
+    }
+  });
+
+  if (!response.ok) {
+    let message = '请求失败';
+    try {
+      const body = (await response.json()) as { message?: string; error?: string };
+      message = body.message ?? body.error ?? message;
+    } catch {
+      // Keep generic message.
+    }
+    throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+async function fetchMe(token: string): Promise<AuthUser> {
+  const result = await apiJson<{ user: AuthUser }>('/auth/me', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return result.user;
+}
+
+async function refreshTokens(refreshToken: string): Promise<StoredTokens> {
+  const result = await apiJson<RefreshResponse>('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken })
+  });
+  return result;
+}
+
+async function getActiveTokens(): Promise<StoredTokens> {
+  const tokens = await readStoredTokens();
+
+  if (!tokens) {
+    throw new Error('请先登录');
+  }
+
+  try {
+    await fetchMe(tokens.token);
+    return tokens;
+  } catch {
+    const refreshed = await refreshTokens(tokens.refreshToken);
+    await writeStoredTokens(refreshed);
+    return refreshed;
+  }
+}
+
+async function apiAuthedJson<T>(urlPath: string, init: RequestInit = {}): Promise<T> {
+  const tokens = await getActiveTokens();
+  return apiJson<T>(urlPath, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${tokens.token}`,
+      ...init.headers
+    }
+  });
+}
+
+ipcMain.handle('auth.login', async (_event, credentials: LoginRequest): Promise<AuthUser> => {
+  const result = await apiJson<LoginResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(credentials)
+  });
+
+  await writeStoredTokens({
+    token: result.token,
+    refreshToken: result.refreshToken
+  });
+
+  return result.user;
+});
+
+ipcMain.handle('auth.me', async (): Promise<AuthUser | null> => {
+  const tokens = await readStoredTokens();
+
+  if (!tokens) {
+    return null;
+  }
+
+  try {
+    return await fetchMe(tokens.token);
+  } catch {
+    try {
+      const refreshed = await refreshTokens(tokens.refreshToken);
+      await writeStoredTokens(refreshed);
+      return await fetchMe(refreshed.token);
+    } catch {
+      await clearStoredTokens();
+      return null;
+    }
+  }
+});
+
+ipcMain.handle('auth.logout', async (): Promise<void> => {
+  const tokens = await readStoredTokens();
+
+  if (tokens) {
+    try {
+      await apiJson<void>('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: tokens.refreshToken })
+      });
+    } catch {
+      // Local logout must still clear encrypted tokens.
+    }
+  }
+
+  await clearStoredTokens();
+});
+
+ipcMain.handle('admin.lockStatus', async (): Promise<LockStatusResponse> => {
+  return apiAuthedJson<LockStatusResponse>('/admin/lock-status', {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('admin.unlock', async (_event, keyBytes: number[]): Promise<UnlockResponse> => {
+  const key = Buffer.from(keyBytes);
+  if (key.length !== 32) {
+    key.fill(0);
+    throw new Error('master.key 必须正好 32 字节');
+  }
+
+  const tokens = await getActiveTokens();
+  const response = await fetch(`${API_BASE_URL}/admin/unlock`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${tokens.token}`,
+      'Content-Type': 'application/octet-stream'
+    },
+    body: key
+  });
+  key.fill(0);
+
+  if (!response.ok) {
+    let message = '解锁失败';
+    try {
+      const body = (await response.json()) as { message?: string; error?: string };
+      message = body.message ?? body.error ?? message;
+    } catch {
+      // Keep generic message.
+    }
+    throw new Error(message);
+  }
+
+  return (await response.json()) as UnlockResponse;
+});
+
+ipcMain.handle('shops.list', async (): Promise<ShopListResponse> => {
+  return { shops: await listShops() };
+});
+
+ipcMain.handle('shops.open', async (_event, request: ShopOpenRequest): Promise<ShopOpenResponse> => {
+  try {
+    const shop = await getShop(request.shopId);
+    return openShop(shop);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      dialog.showErrorBox('打开店铺失败', '店铺不存在或无权限');
+      throw new Error('店铺不存在或无权限');
+    }
+
+    const message = error instanceof Error ? error.message : '打开店铺失败';
+    const displayMessage = message.includes('服务器无法连接') ? '服务器无法连接,请联系老板' : message;
+    dialog.showErrorBox('打开店铺失败', displayMessage);
+    throw new Error(displayMessage);
+  }
+});
+
+ipcMain.handle('shops.close', async (_event, request: ShopCloseRequest): Promise<void> => {
+  closeShop(request.shopId);
+});
+
+function createMainWindow() {
+  const mainWindow = new BrowserWindow({
+    width: 1180,
+    height: 760,
+    minWidth: 960,
+    minHeight: 620,
+    backgroundColor: '#f6f7fb',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+
+  if (devServerUrl) {
+    void mainWindow.loadURL(devServerUrl);
+  } else {
+    void mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  }
+}
+
+app.whenReady().then(() => {
+  createMainWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  closeAllShopWindows();
+});

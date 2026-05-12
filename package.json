@@ -1,0 +1,30 @@
+{
+  "name": "pandao-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PANDAO internal browser workspace",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "overrides": {
+    "fast-uri": "3.1.2"
+  },
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "seed:admin": "npm run seed:admin -w server",
+    "keygen": "npm run keygen -w server",
+    "rotate-key": "npm run rotate-key -w server",
+    "aes-roundtrip": "npm run aes-roundtrip -w server",
+    "regenerate-fingerprints": "npm run regenerate-fingerprints -w server",
+    "cleanup": "npm run cleanup -w server",
+    "migrate": "npm run migrate -w server",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client"
+  }
+}
