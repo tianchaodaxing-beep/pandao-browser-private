@@ -18,7 +18,6 @@ function sendAuditError(reply: FastifyReply, error: unknown) {
 }
 
 export async function auditRoutes(app: FastifyInstance) {
-  // TODO[WO-009]: validate AI actor JWT before accepting actor_type='ai'.
   app.post<{ Body: Partial<ActionLogInput> & { action_type?: string } }>('/log', async (request, reply) => {
     const user = await authenticateRequest(request, reply);
 

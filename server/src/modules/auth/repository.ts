@@ -46,6 +46,18 @@ export async function findUserById(userId: number): Promise<AuthUser | null> {
   return result.rowCount ? toUser(result.rows[0]) : null;
 }
 
+export async function findUserRecordById(userId: number): Promise<UserRecord | null> {
+  const result = await getDbPool().query(
+    `SELECT id, username, password_hash, role, team_id, display_name, status, frozen_until
+     FROM users
+     WHERE id = $1
+     LIMIT 1`,
+    [userId]
+  );
+
+  return result.rowCount ? toUserRecord(result.rows[0]) : null;
+}
+
 export async function updateLastLogin(userId: number) {
   await getDbPool().query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [userId]);
 }
@@ -95,6 +107,23 @@ export async function upsertBossUser(passwordHash: string) {
            frozen_until = NULL
      RETURNING id, username, role, team_id, display_name, status`,
     [passwordHash, 'Boss']
+  );
+
+  return toUser(result.rows[0]);
+}
+
+export async function upsertAiUser(passwordHash: string) {
+  const result = await getDbPool().query(
+    `INSERT INTO users (username, password_hash, role, display_name, status)
+     VALUES ('ai', $1, 'ai', $2, 'active')
+     ON CONFLICT (username) DO UPDATE
+       SET password_hash = EXCLUDED.password_hash,
+           role = 'ai',
+           display_name = EXCLUDED.display_name,
+           status = 'active',
+           frozen_until = NULL
+     RETURNING id, username, role, team_id, display_name, status`,
+    [passwordHash, 'Secretary AI']
   );
 
   return toUser(result.rows[0]);

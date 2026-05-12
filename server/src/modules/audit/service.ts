@@ -105,9 +105,14 @@ export async function createActionLog(
   userAgent: string | null
 ): Promise<ActionLogResponse> {
   const input = sanitizeActionLogInput(body);
+  const logInput: ActionLogInput = user.role === 'ai' ? { ...input, actorType: 'ai' } : input;
+
+  if (logInput.actorType === 'ai' && user.role !== 'ai') {
+    throw new AuditServiceError(403, 'FORBIDDEN', 'actorType ai requires an ai account');
+  }
 
   return insertActionLog({
-    ...input,
+    ...logInput,
     actorId: user.id,
     ipAddress,
     userAgent

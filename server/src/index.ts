@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { closeDbPool } from './db/pool.js';
 import { startActionLogCleanup } from './jobs/cleanup-action-logs.js';
 import { adminRoutes } from './modules/admin/routes.js';
+import { aiRoutes } from './modules/ai/routes.js';
 import { auditRoutes } from './modules/audit/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { credentialsRoutes, shopCredentialTokenRoutes } from './modules/credentials/routes.js';
@@ -15,6 +16,7 @@ import { shopsRoutes } from './modules/shops/routes.js';
 import { teamsRoutes } from './modules/teams/routes.js';
 import { usersRoutes } from './modules/users/routes.js';
 import { registerJwt } from './plugins/jwt.js';
+import { wsRoutes } from './ws/plugin.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3001;
@@ -60,6 +62,7 @@ export function buildServer() {
   });
 
   registerJwt(app);
+  void app.register(wsRoutes);
   void app.register(authRoutes, {
     prefix: '/auth'
   });
@@ -86,6 +89,9 @@ export function buildServer() {
   });
   void app.register(teamsRoutes, {
     prefix: '/teams'
+  });
+  void app.register(aiRoutes, {
+    prefix: '/ai'
   });
 
   app.get('/health', async () => {

@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
+  AiTask,
+  AiTaskExecutionResponse,
   AuthUser,
   LockStatusResponse,
   LoginRequest,
@@ -19,6 +21,7 @@ import type {
   ShopOpenResponse,
   UnlockResponse
 } from 'shared';
+import { executeAiTask } from './ai-bridge/executor.js';
 import { registerActionRecorderHandlers } from './action-recorder/main-bridge.js';
 import { ApiRequestError, getShop, listShops } from './browser-engine/api-client.js';
 import { ShopProxyOpenError, closeAllShopWindows, closeShop, openShop } from './browser-engine/window-manager.js';
@@ -132,6 +135,23 @@ async function apiAuthedJson<T>(urlPath: string, init: RequestInit = {}): Promis
       ...init.headers
     }
   });
+}
+
+function buildWsUrl(token: string) {
+  const url = new URL(API_BASE_URL);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.pathname = '/ws';
+  url.search = '';
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+function parseTaskId(value: unknown) {
+  const taskId = Number(value);
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    throw new Error('Invalid AI task id');
+  }
+  return taskId;
 }
 
 ipcMain.handle('auth.login', async (_event, credentials: LoginRequest): Promise<AuthUser> => {
@@ -280,6 +300,31 @@ ipcMain.handle('shops.open', async (_event, request: ShopOpenRequest): Promise<S
 
 ipcMain.handle('shops.close', async (_event, request: ShopCloseRequest): Promise<void> => {
   closeShop(request.shopId);
+});
+
+ipcMain.handle('ai.wsUrl', async (): Promise<string> => {
+  const tokens = await getActiveTokens();
+  return buildWsUrl(tokens.token);
+});
+
+ipcMain.handle('ai.list', async (): Promise<{ tasks: AiTask[] }> => {
+  return apiAuthedJson<{ tasks: AiTask[] }>('/ai/tasks/assigned', {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('ai.get', async (_event, value: unknown): Promise<{ task: AiTask }> => {
+  return apiAuthedJson<{ task: AiTask }>(`/ai/task/${parseTaskId(value)}`, {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('ai.execute', async (_event, value: unknown): Promise<AiTaskExecutionResponse> => {
+  return executeAiTask(parseTaskId(value));
+});
+
+ipcMain.handle('ai.confirm', async (_event, value: unknown): Promise<AiTaskExecutionResponse> => {
+  return executeAiTask(parseTaskId(value));
 });
 
 function createMainWindow() {

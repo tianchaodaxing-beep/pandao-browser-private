@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 import type {
+  AiTask,
+  AiTaskExecutionResponse,
   AuthUser,
   LockStatusResponse,
   LoginRequest,
@@ -34,6 +36,13 @@ declare global {
         list: () => Promise<ShopListResponse>;
         open: (shopId: number) => Promise<ShopOpenResponse>;
         close: (shopId: number) => Promise<void>;
+      };
+      ai: {
+        wsUrl: () => Promise<string>;
+        list: () => Promise<{ tasks: AiTask[] }>;
+        get: (taskId: number) => Promise<{ task: AiTask }>;
+        execute: (taskId: number) => Promise<AiTaskExecutionResponse>;
+        confirm: (taskId: number) => Promise<AiTaskExecutionResponse>;
       };
     };
   }

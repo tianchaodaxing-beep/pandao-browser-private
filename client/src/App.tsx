@@ -3,6 +3,7 @@ import type { AuthUser, LoginRequest } from 'shared';
 import { roleLabels } from './modules/auth/roleLabels';
 import { ProxiesPage } from './pages/admin/proxies/ProxiesPage';
 import { UnlockPage } from './pages/admin/unlock/UnlockPage';
+import { AiTaskPanel } from './pages/ai/AiTaskPanel';
 import { LoginPage } from './pages/login/LoginPage';
 import { ShopsPage } from './pages/shops/ShopsPage';
 
@@ -13,7 +14,7 @@ type AuthState =
 
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ state: 'loading' });
-  const [view, setView] = useState<'shops' | 'unlock' | 'proxies'>('shops');
+  const [view, setView] = useState<'shops' | 'unlock' | 'proxies' | 'ai'>('shops');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -75,6 +76,7 @@ export function App() {
   }
 
   const canManageProxies = auth.user.role === 'boss';
+  const canReceiveAiTasks = auth.user.role === 'staff' || auth.user.role === 'manager' || auth.user.role === 'boss';
 
   return (
     <main className="app-shell">
@@ -97,6 +99,11 @@ export function App() {
                 代理 IP
               </button>
             ) : null}
+            {canReceiveAiTasks ? (
+              <button className={view === 'ai' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('ai')}>
+                AI Tasks
+              </button>
+            ) : null}
             <button className="secondary-button ghost" type="button" onClick={handleLogout}>
               退出登录
             </button>
@@ -105,6 +112,7 @@ export function App() {
         {view === 'shops' ? <ShopsPage /> : null}
         {view === 'unlock' ? <UnlockPage user={auth.user} onUnlocked={() => setView('shops')} /> : null}
         {view === 'proxies' && canManageProxies ? <ProxiesPage /> : null}
+        {view === 'ai' && canReceiveAiTasks ? <AiTaskPanel user={auth.user} /> : null}
       </section>
     </main>
   );
