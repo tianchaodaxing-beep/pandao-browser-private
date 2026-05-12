@@ -11,6 +11,8 @@ import { defaultPlatformUrls } from './platform-urls.js';
 import { applyProxyToSession } from './proxy.js';
 
 const shopWindows = new Map<number, BrowserWindow>();
+const shopSessionPartitions = new Set<string>();
+const emergencyStorageTypes = ['cookies', 'localstorage', 'indexdb'] as const;
 
 export class ShopProxyOpenError extends Error {
   constructor(message: string) {
@@ -36,6 +38,10 @@ function getExistingShopWindow(shopId: number): BrowserWindow | null {
   }
 
   return existingWindow;
+}
+
+function getShopPartition(shopId: number) {
+  return `persist:shop-${shopId}`;
 }
 
 function focusShopWindow(shopWindow: BrowserWindow) {
@@ -122,7 +128,8 @@ export async function openShop(shop: Shop): Promise<ShopOpenResponse> {
   }
 
   const title = `${shop.name} - PANDAO Browser`;
-  const partition = `persist:shop-${shop.id}`;
+  const partition = getShopPartition(shop.id);
+  shopSessionPartitions.add(partition);
   const shopSession = session.fromPartition(partition);
   applyStealthSessionPolicy(shopSession, shop.fingerprintConfig);
 
@@ -211,4 +218,14 @@ export function closeAllShopWindows() {
     }
     shopWindows.delete(shopId);
   }
+}
+
+export async function clearAllShopStorageData() {
+  await Promise.all(
+    Array.from(shopSessionPartitions).map((partition) =>
+      session.fromPartition(partition).clearStorageData({
+        storages: [...emergencyStorageTypes]
+      })
+    )
+  );
 }

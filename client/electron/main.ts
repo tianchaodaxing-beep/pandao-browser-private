@@ -1,11 +1,15 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, session } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
   AiTask,
   AiTaskExecutionResponse,
   AuthUser,
+  EmergencyLockoutWsPayload,
+  EmergencyStatusResponse,
   LockStatusResponse,
+  LockoutRequest,
+  LockoutResponse,
   LoginRequest,
   LoginResponse,
   ProxyBatchRequest,
@@ -24,7 +28,14 @@ import type {
 import { executeAiTask } from './ai-bridge/executor.js';
 import { registerActionRecorderHandlers } from './action-recorder/main-bridge.js';
 import { ApiRequestError, getShop, listShops } from './browser-engine/api-client.js';
-import { ShopProxyOpenError, closeAllShopWindows, closeShop, openShop } from './browser-engine/window-manager.js';
+import {
+  ShopProxyOpenError,
+  clearAllShopStorageData,
+  closeAllShopWindows,
+  closeShop,
+  openShop
+} from './browser-engine/window-manager.js';
+import { EmergencyWsClient, buildWsUrl } from './ws/client.js';
 
 app.setName('pandao-browser');
 app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
@@ -37,6 +48,19 @@ type StoredTokens = {
 
 const API_BASE_URL =
   process.env.PANDAO_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001';
+const emergencyStorageTypes = ['cookies', 'localstorage', 'indexdb'] as const;
+let emergencyWsClient: EmergencyWsClient | null = null;
+
+class IpcApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string
+  ) {
+    super(message);
+    this.name = 'IpcApiError';
+  }
+}
 
 function getAuthFilePath() {
   return path.join(app.getPath('userData'), 'auth.bin');
@@ -75,13 +99,15 @@ async function apiJson<T>(urlPath: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     let message = '请求失败';
+    let code: string | undefined;
     try {
       const body = (await response.json()) as { message?: string; error?: string };
       message = body.message ?? body.error ?? message;
+      code = body.error;
     } catch {
       // Keep generic message.
     }
-    throw new Error(message);
+    throw new IpcApiError(message, response.status, code);
   }
 
   if (response.status === 204) {
@@ -119,7 +145,12 @@ async function getActiveTokens(): Promise<StoredTokens> {
   try {
     await fetchMe(tokens.token);
     return tokens;
-  } catch {
+  } catch (error) {
+    if (error instanceof IpcApiError && error.code === 'EMERGENCY_LOCKOUT') {
+      await clearStoredTokens();
+      throw error;
+    }
+
     const refreshed = await refreshTokens(tokens.refreshToken);
     await writeStoredTokens(refreshed);
     return refreshed;
@@ -137,21 +168,50 @@ async function apiAuthedJson<T>(urlPath: string, init: RequestInit = {}): Promis
   });
 }
 
-function buildWsUrl(token: string) {
-  const url = new URL(API_BASE_URL);
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.pathname = '/ws';
-  url.search = '';
-  url.searchParams.set('token', token);
-  return url.toString();
-}
-
 function parseTaskId(value: unknown) {
   const taskId = Number(value);
   if (!Number.isInteger(taskId) || taskId <= 0) {
     throw new Error('Invalid AI task id');
   }
   return taskId;
+}
+
+async function provideWsToken(): Promise<string | null> {
+  try {
+    const tokens = await getActiveTokens();
+    return tokens.token;
+  } catch {
+    return null;
+  }
+}
+
+function emitEmergencyLockout(payload: EmergencyLockoutWsPayload) {
+  for (const browserWindow of BrowserWindow.getAllWindows()) {
+    if (!browserWindow.isDestroyed()) {
+      browserWindow.webContents.send('emergency.lockout', payload);
+    }
+  }
+}
+
+async function clearEmergencyStorageData() {
+  await Promise.all([
+    session.defaultSession.clearStorageData({
+      storages: [...emergencyStorageTypes]
+    }),
+    clearAllShopStorageData()
+  ]);
+}
+
+async function handleEmergencyLockout(payload: EmergencyLockoutWsPayload) {
+  emergencyWsClient?.stop();
+  closeAllShopWindows();
+  try {
+    await clearEmergencyStorageData();
+  } catch (error) {
+    console.log(`[emergency] failed to clear storage: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  await clearStoredTokens();
+  emitEmergencyLockout(payload);
 }
 
 ipcMain.handle('auth.login', async (_event, credentials: LoginRequest): Promise<AuthUser> => {
@@ -164,6 +224,7 @@ ipcMain.handle('auth.login', async (_event, credentials: LoginRequest): Promise<
     token: result.token,
     refreshToken: result.refreshToken
   });
+  emergencyWsClient?.reconnectNow();
 
   return result.user;
 });
@@ -177,7 +238,12 @@ ipcMain.handle('auth.me', async (): Promise<AuthUser | null> => {
 
   try {
     return await fetchMe(tokens.token);
-  } catch {
+  } catch (error) {
+    if (error instanceof IpcApiError && error.code === 'EMERGENCY_LOCKOUT') {
+      await clearStoredTokens();
+      return null;
+    }
+
     try {
       const refreshed = await refreshTokens(tokens.refreshToken);
       await writeStoredTokens(refreshed);
@@ -204,6 +270,7 @@ ipcMain.handle('auth.logout', async (): Promise<void> => {
   }
 
   await clearStoredTokens();
+  emergencyWsClient?.stop();
 });
 
 ipcMain.handle('admin.lockStatus', async (): Promise<LockStatusResponse> => {
@@ -273,6 +340,23 @@ ipcMain.handle('admin.unbindProxy', async (_event, proxyId: number): Promise<Pro
   });
 });
 
+ipcMain.handle('admin.emergencyStatus', async (): Promise<EmergencyStatusResponse> => {
+  return apiAuthedJson<EmergencyStatusResponse>('/emergency/status', {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('admin.emergencyLockout', async (_event, request: LockoutRequest): Promise<LockoutResponse> => {
+  return apiAuthedJson<LockoutResponse>('/emergency/lockout', {
+    method: 'POST',
+    body: JSON.stringify({
+      scope: request.scope,
+      target_id: request.targetId ?? null,
+      reason: request.reason
+    })
+  });
+});
+
 ipcMain.handle('shops.list', async (): Promise<ShopListResponse> => {
   return { shops: await listShops() };
 });
@@ -304,7 +388,7 @@ ipcMain.handle('shops.close', async (_event, request: ShopCloseRequest): Promise
 
 ipcMain.handle('ai.wsUrl', async (): Promise<string> => {
   const tokens = await getActiveTokens();
-  return buildWsUrl(tokens.token);
+  return buildWsUrl(API_BASE_URL, tokens.token);
 });
 
 ipcMain.handle('ai.list', async (): Promise<{ tasks: AiTask[] }> => {
@@ -373,6 +457,8 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  emergencyWsClient = new EmergencyWsClient(API_BASE_URL, provideWsToken, handleEmergencyLockout);
+  emergencyWsClient.start();
   createMainWindow();
 
   app.on('activate', () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AuthUser, LoginRequest } from 'shared';
+import { EmergencyPage } from './pages/admin/emergency/EmergencyPage';
 import { roleLabels } from './modules/auth/roleLabels';
 import { ProxiesPage } from './pages/admin/proxies/ProxiesPage';
 import { UnlockPage } from './pages/admin/unlock/UnlockPage';
@@ -15,7 +16,7 @@ type AuthState =
 
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ state: 'loading' });
-  const [view, setView] = useState<'shops' | 'unlock' | 'proxies' | 'ai' | 'approvals'>('shops');
+  const [view, setView] = useState<'shops' | 'unlock' | 'proxies' | 'emergency' | 'ai' | 'approvals'>('shops');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -36,6 +37,19 @@ export function App() {
 
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.pandao?.admin.onEmergencyLockout((payload) => {
+      const message = `应急下线:${payload.reason}`;
+      window.alert(message);
+      setView('shops');
+      setAuth({ state: 'anonymous', error: message });
+    });
+
+    return () => {
+      unsubscribe?.();
     };
   }, []);
 
@@ -77,6 +91,7 @@ export function App() {
   }
 
   const canManageProxies = auth.user.role === 'boss';
+  const canTriggerEmergency = auth.user.role === 'boss';
   const canReceiveAiTasks = auth.user.role === 'staff' || auth.user.role === 'manager' || auth.user.role === 'boss';
   const canApproveAiTasks = auth.user.role === 'manager' || auth.user.role === 'boss';
 
@@ -101,6 +116,11 @@ export function App() {
                 代理 IP
               </button>
             ) : null}
+            {canTriggerEmergency ? (
+              <button className={view === 'emergency' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('emergency')}>
+                应急
+              </button>
+            ) : null}
             {canReceiveAiTasks ? (
               <button className={view === 'ai' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('ai')}>
                 AI Tasks
@@ -119,6 +139,7 @@ export function App() {
         {view === 'shops' ? <ShopsPage /> : null}
         {view === 'unlock' ? <UnlockPage user={auth.user} onUnlocked={() => setView('shops')} /> : null}
         {view === 'proxies' && canManageProxies ? <ProxiesPage /> : null}
+        {view === 'emergency' && canTriggerEmergency ? <EmergencyPage /> : null}
         {view === 'ai' && canReceiveAiTasks ? <AiTaskPanel user={auth.user} /> : null}
         {view === 'approvals' && canApproveAiTasks ? <ApprovalsPage user={auth.user} /> : null}
       </section>

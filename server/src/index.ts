@@ -12,6 +12,8 @@ import { aiRoutes } from './modules/ai/routes.js';
 import { auditRoutes } from './modules/audit/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { credentialsRoutes, shopCredentialTokenRoutes } from './modules/credentials/routes.js';
+import { clearExpired } from './modules/emergency/blacklist.js';
+import { emergencyRoutes } from './modules/emergency/routes.js';
 import { proxiesRoutes } from './modules/proxies/routes.js';
 import { shopsRoutes } from './modules/shops/routes.js';
 import { teamsRoutes } from './modules/teams/routes.js';
@@ -82,6 +84,9 @@ export function buildServer() {
   void app.register(credentialsRoutes, {
     prefix: '/credentials'
   });
+  void app.register(emergencyRoutes, {
+    prefix: '/emergency'
+  });
   void app.register(auditRoutes, {
     prefix: '/actions'
   });
@@ -99,7 +104,11 @@ export function buildServer() {
     return { status: 'ok' };
   });
 
+  const blacklistCleanupTimer = setInterval(clearExpired, 600_000);
+  blacklistCleanupTimer.unref?.();
+
   app.addHook('onClose', async () => {
+    clearInterval(blacklistCleanupTimer);
     await closeDbPool();
   });
 

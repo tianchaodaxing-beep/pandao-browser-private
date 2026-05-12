@@ -16,7 +16,6 @@ const mandatoryScreenshotActions = new Set([
 ]);
 
 function shouldCaptureScreenshot(log: ActionLogInput) {
-  // TODO[WO-011]: escalate red actions into emergency stop flow.
   if (log.riskLevel === 'yellow' || log.riskLevel === 'red') {
     return true;
   }

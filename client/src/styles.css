@@ -405,6 +405,99 @@ h1 {
   background: #176344;
 }
 
+.emergency-panel {
+  border-color: #f1b8bd;
+}
+
+.emergency-status {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+}
+
+.emergency-status div {
+  min-width: 78px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.emergency-status dt {
+  margin: 0 0 4px;
+  color: #6a7584;
+  font-size: 12px;
+}
+
+.emergency-status dd {
+  margin: 0;
+  color: #b4232e;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.emergency-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scope-button {
+  min-height: 38px;
+  border: 1px solid #cfd7e4;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #243447;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scope-button.active {
+  border-color: #b4232e;
+  background: #fff1f2;
+  color: #b4232e;
+}
+
+.target-field {
+  display: grid;
+  gap: 8px;
+  color: #526070;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.target-field input,
+.target-field textarea {
+  width: 100%;
+  border: 1px solid #cfd7e4;
+  border-radius: 6px;
+  color: #16202a;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.target-field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.target-field input:focus,
+.target-field textarea:focus {
+  border-color: #b4232e;
+  outline: 2px solid rgba(180, 35, 46, 0.14);
+}
+
+.emergency-submit {
+  justify-self: start;
+}
+
 .shop-open-button.danger {
   background: #b4232e;
 }
@@ -463,5 +556,10 @@ h1 {
 
   .proxy-form {
     grid-template-columns: 1fr;
+  }
+
+  .segmented-control,
+  .emergency-status {
+    grid-template-columns: 1fr 1fr;
   }
 }

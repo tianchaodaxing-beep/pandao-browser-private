@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { LoginRequest, ProxyBatchRequest, ShopCloseRequest, ShopOpenRequest } from 'shared';
+import type { IpcRendererEvent } from 'electron';
+import type {
+  EmergencyLockoutWsPayload,
+  LockoutRequest,
+  LoginRequest,
+  ProxyBatchRequest,
+  ShopCloseRequest,
+  ShopOpenRequest
+} from 'shared';
 
 contextBridge.exposeInMainWorld('pandao', {
   auth: {
@@ -13,7 +21,14 @@ contextBridge.exposeInMainWorld('pandao', {
     listProxies: () => ipcRenderer.invoke('admin.listProxies'),
     batchProxies: (request: ProxyBatchRequest) => ipcRenderer.invoke('admin.batchProxies', request),
     bindProxy: (proxyId: number, shopId: number) => ipcRenderer.invoke('admin.bindProxy', { proxyId, shopId }),
-    unbindProxy: (proxyId: number) => ipcRenderer.invoke('admin.unbindProxy', proxyId)
+    unbindProxy: (proxyId: number) => ipcRenderer.invoke('admin.unbindProxy', proxyId),
+    emergencyStatus: () => ipcRenderer.invoke('admin.emergencyStatus'),
+    emergencyLockout: (request: LockoutRequest) => ipcRenderer.invoke('admin.emergencyLockout', request),
+    onEmergencyLockout: (handler: (payload: EmergencyLockoutWsPayload) => void) => {
+      const listener = (_event: IpcRendererEvent, payload: EmergencyLockoutWsPayload) => handler(payload);
+      ipcRenderer.on('emergency.lockout', listener);
+      return () => ipcRenderer.off('emergency.lockout', listener);
+    }
   },
   shops: {
     list: () => ipcRenderer.invoke('shops.list'),

@@ -8,6 +8,8 @@ export type AuthJwtPayload = {
   userId: number;
   username: string;
   role: Role;
+  jti?: string;
+  exp?: number;
 };
 
 export type RefreshJwtPayload = {

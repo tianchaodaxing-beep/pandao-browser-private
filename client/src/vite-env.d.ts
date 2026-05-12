@@ -4,7 +4,11 @@ import type {
   AiTask,
   AiTaskExecutionResponse,
   AuthUser,
+  EmergencyLockoutWsPayload,
+  EmergencyStatusResponse,
   LockStatusResponse,
+  LockoutRequest,
+  LockoutResponse,
   LoginRequest,
   ProxyBatchRequest,
   ProxyBatchResponse,
@@ -31,6 +35,9 @@ declare global {
         batchProxies: (request: ProxyBatchRequest) => Promise<ProxyBatchResponse>;
         bindProxy: (proxyId: number, shopId: number) => Promise<ProxyBindResponse>;
         unbindProxy: (proxyId: number) => Promise<ProxyUnbindResponse>;
+        emergencyStatus: () => Promise<EmergencyStatusResponse>;
+        emergencyLockout: (request: LockoutRequest) => Promise<LockoutResponse>;
+        onEmergencyLockout: (handler: (payload: EmergencyLockoutWsPayload) => void) => () => void;
       };
       shops: {
         list: () => Promise<ShopListResponse>;
