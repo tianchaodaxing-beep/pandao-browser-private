@@ -1,0 +1,38 @@
+{
+  "naver_smartstore": [
+    {
+      "actionType": "product.price.update",
+      "submitSelector": "button[data-test='save-price']",
+      "fields": [{ "name": "price", "selector": "input[name='price']", "read": "value" }]
+    },
+    { "actionType": "order.refund.partial", "submitSelector": ".btn-refund-partial" },
+    { "actionType": "order.shipment.fill", "submitSelector": ".btn-ship" }
+  ],
+  "coupang": [
+    {
+      "actionType": "product.price.update",
+      "submitSelector": "button[data-test='save-price']",
+      "fields": [{ "name": "price", "selector": "input[name='price']", "read": "value" }]
+    },
+    { "actionType": "order.refund.partial", "submitSelector": ".btn-refund-partial" },
+    { "actionType": "order.shipment.fill", "submitSelector": ".btn-ship" }
+  ],
+  "gmarket": [
+    {
+      "actionType": "product.price.update",
+      "submitSelector": "button[data-test='save-price']",
+      "fields": [{ "name": "price", "selector": "input[name='price']", "read": "value" }]
+    },
+    { "actionType": "order.refund.partial", "submitSelector": ".btn-refund-partial" },
+    { "actionType": "order.shipment.fill", "submitSelector": ".btn-ship" }
+  ],
+  "11st": [
+    {
+      "actionType": "product.price.update",
+      "submitSelector": "button[data-test='save-price']",
+      "fields": [{ "name": "price", "selector": "input[name='price']", "read": "value" }]
+    },
+    { "actionType": "order.refund.partial", "submitSelector": ".btn-refund-partial" },
+    { "actionType": "order.shipment.fill", "submitSelector": ".btn-ship" }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "naver_smartstore": {
+    "loginUrlPattern": "^https?://.*naver\\.com/.*login",
+    "username": "#id",
+    "password": "#pw",
+    "submitHint": ".btn_login"
+  },
+  "coupang": {
+    "loginUrlPattern": "^https?://.*coupang\\.com/.*login",
+    "username": "input[name=loginId]",
+    "password": "input[name=password]",
+    "submitHint": "button[type=submit]"
+  },
+  "gmarket": {
+    "loginUrlPattern": "^https?://.*gmarket\\.co\\.kr/.*login",
+    "username": "input[name=loginId]",
+    "password": "input[name=password]",
+    "submitHint": "button[type=submit]"
+  },
+  "11st": {
+    "loginUrlPattern": "^https?://.*11st\\.co\\.kr/.*login",
+    "username": "input[name=mbrId]",
+    "password": "input[name=mbrPw]",
+    "submitHint": "button[type=submit]"
+  }
+}

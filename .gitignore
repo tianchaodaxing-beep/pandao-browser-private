@@ -11,7 +11,9 @@ yarn-error.log*
 pnpm-debug.log*
 *.local
 *.tsbuildinfo
-data/
+# Note: do NOT ignore "data/" globally — server/src/data/ has WO-005 platform-selectors
+# and WO-008 action-selectors JSON configs. Only ignore the production runtime data dir:
+/data/
 logs/
 *.key
 master.key
