@@ -405,9 +405,34 @@ h1 {
   background: #176344;
 }
 
+.shop-open-button.danger {
+  background: #b4232e;
+}
+
+.shop-open-button.danger:hover:not(:disabled) {
+  background: #8f1d27;
+}
+
 .shop-open-button:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+.approval-task-card {
+  align-items: flex-start;
+}
+
+.task-payload {
+  max-width: 100%;
+  max-height: 140px;
+  overflow: auto;
+  margin: 10px 0 0;
+  border-radius: 6px;
+  background: #f6f7fb;
+  color: #243447;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .form-error {

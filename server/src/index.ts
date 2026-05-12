@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeDbPool } from './db/pool.js';
 import { startActionLogCleanup } from './jobs/cleanup-action-logs.js';
+import { startOverdueApprovalEscalation } from './jobs/escalate-overdue-approvals.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { auditRoutes } from './modules/audit/routes.js';
@@ -103,6 +104,7 @@ export function buildServer() {
   });
 
   startActionLogCleanup(app);
+  startOverdueApprovalEscalation(app);
 
   return app;
 }

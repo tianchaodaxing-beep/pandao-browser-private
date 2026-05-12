@@ -24,7 +24,7 @@ const riskLevels = ['green', 'yellow', 'red'] as const;
 
 const aiTaskColumns = `
   id, ai_id, shop_id, command, payload, status, risk_level,
-  approval_required, assigned_to, result, created_at, approved_at, executed_at
+  approval_required, assigned_to, result, created_at, approved_at, executed_at, escalated_at
 `;
 
 function assertAiTaskStatus(value: unknown): AiTaskStatus {
@@ -61,7 +61,8 @@ function toAiTask(row: QueryResultRow): AiTask {
     result: row.result ?? null,
     createdAt: new Date(row.created_at).toISOString(),
     approvedAt: optionalIso(row.approved_at),
-    executedAt: optionalIso(row.executed_at)
+    executedAt: optionalIso(row.executed_at),
+    escalatedAt: optionalIso(row.escalated_at)
   };
 }
 
@@ -116,6 +117,43 @@ export async function listAssignedOpenAiTasks(userId: number): Promise<AiTask[]>
        AND status IN ('approved', 'executing')
      ORDER BY created_at DESC
      LIMIT 50`,
+    [userId]
+  );
+
+  return result.rows.map(toAiTask);
+}
+
+export async function listPendingApprovalTasksForUser(userId: number, role: Role): Promise<AiTask[]> {
+  if (role === 'boss') {
+    const result = await getDbPool().query(
+      `SELECT ${aiTaskColumns}
+       FROM ai_tasks
+       WHERE status = 'pending'
+         AND approval_required = TRUE
+       ORDER BY created_at DESC
+       LIMIT 100`
+    );
+
+    return result.rows.map(toAiTask);
+  }
+
+  if (role !== 'manager') {
+    return [];
+  }
+
+  const result = await getDbPool().query(
+    `SELECT
+       task.id, task.ai_id, task.shop_id, task.command, task.payload, task.status, task.risk_level,
+       task.approval_required, task.assigned_to, task.result, task.created_at, task.approved_at,
+       task.executed_at, task.escalated_at
+     FROM ai_tasks task
+     JOIN shops s ON s.id = task.shop_id
+     JOIN teams t ON t.id = s.team_id
+     WHERE task.status = 'pending'
+       AND task.approval_required = TRUE
+       AND t.manager_id = $1
+     ORDER BY task.created_at DESC
+     LIMIT 100`,
     [userId]
   );
 
@@ -295,4 +333,65 @@ export async function findDispatchCandidates(shopId: number): Promise<DispatchCa
   );
 
   return bosses.rows.map((row) => ({ userId: Number(row.id), role: row.role as Role }));
+}
+
+export async function findApprovalRecipients(shopId: number): Promise<DispatchCandidate[]> {
+  const recipients = new Map<number, DispatchCandidate>();
+  const managerResult = await getDbPool().query(
+    `SELECT u.id, u.role
+     FROM shops s
+     JOIN teams t ON t.id = s.team_id
+     JOIN users u ON u.id = t.manager_id
+     WHERE s.id = $1
+       AND u.role = 'manager'
+       AND u.status = 'active'
+       AND (u.frozen_until IS NULL OR u.frozen_until <= NOW())`,
+    [shopId]
+  );
+
+  for (const row of managerResult.rows) {
+    recipients.set(Number(row.id), { userId: Number(row.id), role: row.role as Role });
+  }
+
+  const bossResult = await getDbPool().query(
+    `SELECT id, role
+     FROM users
+     WHERE role = 'boss'
+       AND status = 'active'
+       AND (frozen_until IS NULL OR frozen_until <= NOW())
+     ORDER BY id ASC`
+  );
+
+  for (const row of bossResult.rows) {
+    recipients.set(Number(row.id), { userId: Number(row.id), role: row.role as Role });
+  }
+
+  return [...recipients.values()];
+}
+
+export async function findActiveBossIds(): Promise<number[]> {
+  const result = await getDbPool().query(
+    `SELECT id
+     FROM users
+     WHERE role = 'boss'
+       AND status = 'active'
+       AND (frozen_until IS NULL OR frozen_until <= NOW())
+     ORDER BY id ASC`
+  );
+
+  return result.rows.map((row) => Number(row.id));
+}
+
+export async function markOverduePendingAiTasks(): Promise<AiTask[]> {
+  const result = await getDbPool().query(
+    `UPDATE ai_tasks
+     SET escalated_at = NOW()
+     WHERE status = 'pending'
+       AND approval_required = TRUE
+       AND escalated_at IS NULL
+       AND created_at < NOW() - INTERVAL '24 hours'
+     RETURNING ${aiTaskColumns}`
+  );
+
+  return result.rows.map(toAiTask);
 }

@@ -7,8 +7,9 @@ import type {
   AuthUser
 } from 'shared';
 import { findUserRecordById } from '../auth/repository.js';
+import { handleBoundaryRedAttempt } from '../boundary/engine.js';
 import { boundaryEvaluate } from './boundary-stub.js';
-import { dispatchToShopStaff, notifyAiTaskApproved, notifyAiTaskDenied } from './dispatcher.js';
+import { dispatchToShopStaff, notifyAiTaskApproved, notifyAiTaskDenied, notifyManager } from './dispatcher.js';
 import {
   approvePendingAiTask,
   canUserAccessShop,
@@ -19,6 +20,7 @@ import {
   findAiTaskById,
   insertAiTask,
   listAssignedOpenAiTasks,
+  listPendingApprovalTasksForUser,
   updateAiTaskBoundary
 } from './repository.js';
 
@@ -42,9 +44,19 @@ function readString(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function sanitizeTaskInput(body: Partial<AiTaskInput>): AiTaskInput {
+type RawAiTaskInput = Partial<AiTaskInput> & {
+  shop_id?: unknown;
+  currentValue?: unknown;
+  current_value?: unknown;
+};
+
+type SanitizedAiTaskInput = AiTaskInput & {
+  currentValue?: unknown;
+};
+
+function sanitizeTaskInput(body: RawAiTaskInput): SanitizedAiTaskInput {
   const command = readString(body.command);
-  const shopId = parsePositiveInt(body.shopId);
+  const shopId = parsePositiveInt(body.shopId ?? body.shop_id);
 
   if (!command || command.length > 64) {
     throw new AiServiceError(400, 'INVALID_INPUT', 'command must be 1-64 characters');
@@ -57,7 +69,8 @@ function sanitizeTaskInput(body: Partial<AiTaskInput>): AiTaskInput {
   return {
     command,
     shopId,
-    payload: body.payload ?? null
+    payload: body.payload ?? null,
+    currentValue: body.currentValue ?? body.current_value
   };
 }
 
@@ -108,13 +121,30 @@ async function dispatchIfApproved(task: AiTask) {
   return dispatchedTask;
 }
 
-export async function submitAiTask(user: AuthUser, body: Partial<AiTaskInput>) {
+export async function submitAiTask(user: AuthUser, body: RawAiTaskInput) {
   await assertAiCanSubmit(user);
   const input = sanitizeTaskInput(body);
 
   const shop = await findActiveShop(input.shopId);
   if (!shop) {
     throw new AiServiceError(404, 'SHOP_NOT_FOUND', 'shop not found');
+  }
+
+  const decision = boundaryEvaluate({
+    command: input.command,
+    payload: input.payload ?? null,
+    currentValue: input.currentValue
+  });
+
+  if (decision.status === 'denied') {
+    await handleBoundaryRedAttempt({
+      user,
+      shopId: input.shopId,
+      command: input.command,
+      payload: input.payload ?? null,
+      decision
+    });
+    throw new AiServiceError(403, 'BOUNDARY_RED', '触发边界红灯，AI 已冻结 1 小时');
   }
 
   const created = await insertAiTask({
@@ -124,7 +154,6 @@ export async function submitAiTask(user: AuthUser, body: Partial<AiTaskInput>) {
     payload: input.payload ?? null
   });
 
-  const decision = boundaryEvaluate();
   const evaluated = await updateAiTaskBoundary(
     created.id,
     decision.status,
@@ -134,6 +163,11 @@ export async function submitAiTask(user: AuthUser, body: Partial<AiTaskInput>) {
 
   if (evaluated.status === 'denied') {
     notifyAiTaskDenied(evaluated);
+    return evaluated;
+  }
+
+  if (evaluated.status === 'pending') {
+    await notifyManager(evaluated);
     return evaluated;
   }
 
@@ -165,6 +199,10 @@ export async function listAssignedAiTasks(user: AuthUser) {
   }
 
   return listAssignedOpenAiTasks(user.id);
+}
+
+export async function listPendingApprovalTasks(user: AuthUser) {
+  return listPendingApprovalTasksForUser(user.id, user.role);
 }
 
 export async function approveAiTaskForUser(user: AuthUser, taskId: number) {

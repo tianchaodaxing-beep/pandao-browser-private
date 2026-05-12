@@ -6,15 +6,18 @@ import type {
   ActionLogResponse,
   ActionScreenshotResponse,
   ActorType,
-  ApprovalStatus
+  ApprovalStatus,
+  RiskLevel
 } from 'shared';
 import type { AuthUser } from '../auth/types.js';
+import { evaluateAction } from '../boundary/rules.js';
 import { findActionLogActor, insertActionLog, setScreenshotPath } from './repository.js';
 
 export const MAX_SCREENSHOT_BYTES = 4 * 1024 * 1024;
 
 const validActorTypes = new Set<ActorType>(['human', 'ai']);
 const validApprovalStatuses = new Set<ApprovalStatus>(['auto', 'pending', 'approved', 'denied']);
+const validRiskLevels = new Set<RiskLevel>(['green', 'yellow', 'red']);
 
 export class AuditServiceError extends Error {
   constructor(
@@ -63,6 +66,10 @@ function isApprovalStatus(value: string): value is ApprovalStatus {
   return validApprovalStatuses.has(value as ApprovalStatus);
 }
 
+function isRiskLevel(value: string): value is RiskLevel {
+  return validRiskLevels.has(value as RiskLevel);
+}
+
 function sanitizeActionLogInput(body: RawActionLogBody): ActionLogInput {
   const actorType = readString(body.actorType) ?? readString(body.actor_type) ?? 'human';
   const actionType = (readString(body.actionType) ?? readString(body.action_type) ?? '').trim();
@@ -80,7 +87,20 @@ function sanitizeActionLogInput(body: RawActionLogBody): ActionLogInput {
     throw new AuditServiceError(400, 'INVALID_INPUT', 'actionType 必须是 1-64 字符');
   }
 
-  const approvalStatus = readString(body.approvalStatus) ?? readString(body.approval_status) ?? 'auto';
+  const requestedRiskLevel = readString(body.riskLevel) ?? readString(body.risk_level);
+  if (requestedRiskLevel && !isRiskLevel(requestedRiskLevel)) {
+    throw new AuditServiceError(400, 'INVALID_INPUT', 'riskLevel 无效');
+  }
+
+  const evaluation = evaluateAction({
+    command: actionType,
+    payload: body.actionPayload ?? body.action_payload ?? null,
+    currentValue: body.before ?? null
+  });
+  const riskLevel: RiskLevel = requestedRiskLevel ? requestedRiskLevel as RiskLevel : evaluation.riskLevel;
+  const defaultApprovalStatus: ApprovalStatus =
+    riskLevel === 'green' ? 'auto' : riskLevel === 'yellow' ? 'pending' : 'denied';
+  const approvalStatus = readString(body.approvalStatus) ?? readString(body.approval_status) ?? defaultApprovalStatus;
   if (!isApprovalStatus(approvalStatus)) {
     throw new AuditServiceError(400, 'INVALID_INPUT', 'approvalStatus 无效');
   }
@@ -92,8 +112,7 @@ function sanitizeActionLogInput(body: RawActionLogBody): ActionLogInput {
     actionPayload: body.actionPayload ?? body.action_payload ?? null,
     before: body.before ?? null,
     after: body.after ?? null,
-    // TODO[WO-010]: replace green-only default with boundary rule engine output.
-    riskLevel: 'green',
+    riskLevel,
     approvalStatus
   };
 }

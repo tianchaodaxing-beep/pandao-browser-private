@@ -25,6 +25,7 @@
     "regenerate-fingerprints": "npm run regenerate-fingerprints -w server",
     "cleanup": "npm run cleanup -w server",
     "migrate": "npm run migrate -w server",
+    "test:boundary": "npm run test:boundary -w server",
     "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client"
   }

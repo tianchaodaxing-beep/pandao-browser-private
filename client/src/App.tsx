@@ -5,6 +5,7 @@ import { ProxiesPage } from './pages/admin/proxies/ProxiesPage';
 import { UnlockPage } from './pages/admin/unlock/UnlockPage';
 import { AiTaskPanel } from './pages/ai/AiTaskPanel';
 import { LoginPage } from './pages/login/LoginPage';
+import { ApprovalsPage } from './pages/manager/ApprovalsPage';
 import { ShopsPage } from './pages/shops/ShopsPage';
 
 type AuthState =
@@ -14,7 +15,7 @@ type AuthState =
 
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ state: 'loading' });
-  const [view, setView] = useState<'shops' | 'unlock' | 'proxies' | 'ai'>('shops');
+  const [view, setView] = useState<'shops' | 'unlock' | 'proxies' | 'ai' | 'approvals'>('shops');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -77,6 +78,7 @@ export function App() {
 
   const canManageProxies = auth.user.role === 'boss';
   const canReceiveAiTasks = auth.user.role === 'staff' || auth.user.role === 'manager' || auth.user.role === 'boss';
+  const canApproveAiTasks = auth.user.role === 'manager' || auth.user.role === 'boss';
 
   return (
     <main className="app-shell">
@@ -104,6 +106,11 @@ export function App() {
                 AI Tasks
               </button>
             ) : null}
+            {canApproveAiTasks ? (
+              <button className={view === 'approvals' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('approvals')}>
+                Approvals
+              </button>
+            ) : null}
             <button className="secondary-button ghost" type="button" onClick={handleLogout}>
               退出登录
             </button>
@@ -113,6 +120,7 @@ export function App() {
         {view === 'unlock' ? <UnlockPage user={auth.user} onUnlocked={() => setView('shops')} /> : null}
         {view === 'proxies' && canManageProxies ? <ProxiesPage /> : null}
         {view === 'ai' && canReceiveAiTasks ? <AiTaskPanel user={auth.user} /> : null}
+        {view === 'approvals' && canApproveAiTasks ? <ApprovalsPage user={auth.user} /> : null}
       </section>
     </main>
   );

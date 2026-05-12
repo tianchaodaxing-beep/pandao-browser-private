@@ -313,9 +313,31 @@ ipcMain.handle('ai.list', async (): Promise<{ tasks: AiTask[] }> => {
   });
 });
 
+ipcMain.handle('ai.pending', async (): Promise<{ tasks: AiTask[] }> => {
+  return apiAuthedJson<{ tasks: AiTask[] }>('/ai/tasks/pending', {
+    method: 'GET'
+  });
+});
+
 ipcMain.handle('ai.get', async (_event, value: unknown): Promise<{ task: AiTask }> => {
   return apiAuthedJson<{ task: AiTask }>(`/ai/task/${parseTaskId(value)}`, {
     method: 'GET'
+  });
+});
+
+ipcMain.handle('ai.approve', async (_event, value: unknown): Promise<{ task: AiTask }> => {
+  return apiAuthedJson<{ task: AiTask }>(`/ai/task/${parseTaskId(value)}/approve`, {
+    method: 'POST'
+  });
+});
+
+ipcMain.handle('ai.deny', async (_event, value: unknown): Promise<{ task: AiTask }> => {
+  const request = value as { taskId?: unknown; reason?: unknown };
+  const reason = typeof request?.reason === 'string' ? request.reason : undefined;
+
+  return apiAuthedJson<{ task: AiTask }>(`/ai/task/${parseTaskId(request?.taskId)}/deny`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
   });
 });
 

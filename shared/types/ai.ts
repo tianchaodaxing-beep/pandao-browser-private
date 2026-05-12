@@ -26,6 +26,7 @@ export type AiTask = {
   createdAt: string;
   approvedAt: string | null;
   executedAt: string | null;
+  escalatedAt: string | null;
 };
 
 export type AiTaskSubmitResponse = {
@@ -54,6 +55,8 @@ export type WsEventType =
   | 'ai.task.assigned'
   | 'ai.task.approved'
   | 'ai.task.denied'
+  | 'ai.task.pending'
+  | 'emergency.approval_overdue'
   | 'emergency.lockout';
 
 export type WsEvent<TPayload extends object = Record<string, unknown>> = {

@@ -2,6 +2,7 @@ import type { AiTask } from 'shared';
 import { sendWsEvent } from '../../ws/registry.js';
 import {
   findActiveShop,
+  findApprovalRecipients,
   findDispatchCandidates,
   setAiTaskAssignedTo,
   type DispatchCandidate
@@ -46,4 +47,18 @@ export function notifyAiTaskApproved(task: AiTask) {
 
 export function notifyAiTaskDenied(task: AiTask) {
   sendWsEvent(task.aiId, 'ai.task.denied', { task });
+}
+
+export async function notifyManager(task: AiTask) {
+  const recipients = await findApprovalRecipients(task.shopId);
+  const shop = await findActiveShop(task.shopId);
+
+  for (const recipient of recipients) {
+    sendWsEvent(recipient.userId, 'ai.task.pending', {
+      task,
+      shop
+    });
+  }
+
+  return recipients.length;
 }

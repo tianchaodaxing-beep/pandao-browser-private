@@ -40,7 +40,10 @@ declare global {
       ai: {
         wsUrl: () => Promise<string>;
         list: () => Promise<{ tasks: AiTask[] }>;
+        pending: () => Promise<{ tasks: AiTask[] }>;
         get: (taskId: number) => Promise<{ task: AiTask }>;
+        approve: (taskId: number) => Promise<{ task: AiTask }>;
+        deny: (taskId: number, reason?: string) => Promise<{ task: AiTask }>;
         execute: (taskId: number) => Promise<AiTaskExecutionResponse>;
         confirm: (taskId: number) => Promise<AiTaskExecutionResponse>;
       };

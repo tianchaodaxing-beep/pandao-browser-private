@@ -7,6 +7,7 @@ import {
   denyAiTaskForUser,
   getAiTaskForUser,
   listAssignedAiTasks,
+  listPendingApprovalTasks,
   parseTaskId,
   submitAiTask,
   submitAiTaskResult
@@ -65,6 +66,22 @@ export async function aiRoutes(app: FastifyInstance) {
 
     try {
       return { tasks: await listAssignedAiTasks(user) };
+    } catch (error) {
+      if (!sendAiError(reply, error)) {
+        throw error;
+      }
+    }
+  });
+
+  app.get('/tasks/pending', async (request, reply) => {
+    const user = await authenticateRequest(request, reply);
+
+    if (!user) {
+      return;
+    }
+
+    try {
+      return { tasks: await listPendingApprovalTasks(user) };
     } catch (error) {
       if (!sendAiError(reply, error)) {
         throw error;

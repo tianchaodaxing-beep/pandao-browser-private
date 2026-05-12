@@ -23,7 +23,10 @@ contextBridge.exposeInMainWorld('pandao', {
   ai: {
     wsUrl: () => ipcRenderer.invoke('ai.wsUrl'),
     list: () => ipcRenderer.invoke('ai.list'),
+    pending: () => ipcRenderer.invoke('ai.pending'),
     get: (taskId: number) => ipcRenderer.invoke('ai.get', taskId),
+    approve: (taskId: number) => ipcRenderer.invoke('ai.approve', taskId),
+    deny: (taskId: number, reason?: string) => ipcRenderer.invoke('ai.deny', { taskId, reason }),
     execute: (taskId: number) => ipcRenderer.invoke('ai.execute', taskId),
     confirm: (taskId: number) => ipcRenderer.invoke('ai.confirm', taskId)
   }

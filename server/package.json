@@ -8,6 +8,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test",
+    "test:boundary": "node --import tsx --test test/boundary.test.ts",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
     "seed:ai": "tsx src/scripts/seed-ai.ts",
     "keygen": "tsx src/scripts/keygen.ts",
