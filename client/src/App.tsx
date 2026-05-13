@@ -99,7 +99,7 @@ export function App() {
     <main className="app-shell">
       <section className="workspace">
         <div>
-          <p className="eyebrow">PANDAO Browser</p>
+          <p className="eyebrow">PANDAO 浏览器</p>
           <h1>内部浏览器工作台</h1>
           <p className="summary">
             当前用户:{auth.user.displayName ?? auth.user.username}({roleLabels[auth.user.role]})
@@ -123,12 +123,12 @@ export function App() {
             ) : null}
             {canReceiveAiTasks ? (
               <button className={view === 'ai' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('ai')}>
-                AI Tasks
+                AI 任务
               </button>
             ) : null}
             {canApproveAiTasks ? (
               <button className={view === 'approvals' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('approvals')}>
-                Approvals
+                审批
               </button>
             ) : null}
             <button className="secondary-button ghost" type="button" onClick={handleLogout}>

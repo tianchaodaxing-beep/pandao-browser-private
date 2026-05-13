@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, session } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, session } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
@@ -20,6 +20,8 @@ import type {
   ProxyUnbindResponse,
   RefreshResponse,
   ShopCloseRequest,
+  ShopCreateRequest,
+  ShopCreateResponse,
   ShopListResponse,
   ShopOpenRequest,
   ShopOpenResponse,
@@ -363,6 +365,19 @@ ipcMain.handle('shops.list', async (): Promise<ShopListResponse> => {
   return { shops: await listShops() };
 });
 
+ipcMain.handle('shops.create', async (_event, request: ShopCreateRequest): Promise<ShopCreateResponse> => {
+  return apiAuthedJson<ShopCreateResponse>('/shops', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: request.name,
+      platform: request.platform,
+      defaultUrl: request.defaultUrl ?? null,
+      teamId: request.teamId ?? null
+    })
+  });
+});
+
 ipcMain.handle('shops.open', async (_event, request: ShopOpenRequest): Promise<ShopOpenResponse> => {
   try {
     const shop = await getShop(request.shopId);
@@ -459,6 +474,8 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  // 去掉默认 File/Edit/View/Window/Help 菜单(英文,不需要)
+  Menu.setApplicationMenu(null);
   emergencyWsClient = new EmergencyWsClient(API_BASE_URL, provideWsToken, handleEmergencyLockout);
   emergencyWsClient.start();
   createMainWindow();

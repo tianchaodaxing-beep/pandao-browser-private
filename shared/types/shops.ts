@@ -47,3 +47,14 @@ export type ShopOpenResponse = {
 export type ShopCloseRequest = {
   shopId: number;
 };
+
+export type ShopCreateRequest = {
+  name: string;
+  platform: ShopPlatform;
+  defaultUrl?: string | null;
+  teamId?: number | null;
+};
+
+export type ShopCreateResponse = {
+  shop: Shop;
+};

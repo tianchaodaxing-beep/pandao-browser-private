@@ -15,6 +15,8 @@ import type {
   ProxyBindResponse,
   ProxyListResponse,
   ProxyUnbindResponse,
+  ShopCreateRequest,
+  ShopCreateResponse,
   ShopListResponse,
   ShopOpenResponse,
   UnlockResponse
@@ -41,6 +43,7 @@ declare global {
       };
       shops: {
         list: () => Promise<ShopListResponse>;
+        create: (request: ShopCreateRequest) => Promise<ShopCreateResponse>;
         open: (shopId: number) => Promise<ShopOpenResponse>;
         close: (shopId: number) => Promise<void>;
       };

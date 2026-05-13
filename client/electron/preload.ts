@@ -6,6 +6,7 @@ import type {
   LoginRequest,
   ProxyBatchRequest,
   ShopCloseRequest,
+  ShopCreateRequest,
   ShopOpenRequest
 } from 'shared';
 
@@ -32,6 +33,7 @@ contextBridge.exposeInMainWorld('pandao', {
   },
   shops: {
     list: () => ipcRenderer.invoke('shops.list'),
+    create: (request: ShopCreateRequest) => ipcRenderer.invoke('shops.create', request),
     open: (shopId: number) => ipcRenderer.invoke('shops.open', { shopId } satisfies ShopOpenRequest),
     close: (shopId: number) => ipcRenderer.invoke('shops.close', { shopId } satisfies ShopCloseRequest)
   },
