@@ -93,7 +93,9 @@ try {
   const electron = run('npx', ['electron', '.'], {
     env: {
       ...process.env,
-      VITE_DEV_SERVER_URL: rendererUrl
+      VITE_DEV_SERVER_URL: rendererUrl,
+      // dev 默认连本机 server(prod 默认值是 https://browser-api.xinhuonianhua.com)
+      PANDAO_API_BASE_URL: process.env.PANDAO_API_BASE_URL ?? 'http://127.0.0.1:3001'
     }
   });
 

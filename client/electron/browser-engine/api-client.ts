@@ -25,7 +25,9 @@ export class ApiRequestError extends Error {
 }
 
 const API_BASE_URL =
-  process.env.PANDAO_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001';
+  process.env.PANDAO_API_BASE_URL ??
+  process.env.VITE_API_BASE_URL ??
+  'https://browser-api.xinhuonianhua.com';
 
 function getAuthFilePath() {
   return path.join(app.getPath('userData'), 'auth.bin');

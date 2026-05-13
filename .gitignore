@@ -24,3 +24,6 @@ master.key
 
 # Master audit scratch (smoke scripts, Electron user data partitions)
 .audit-tmp/
+
+# electron-builder 产物
+/release/

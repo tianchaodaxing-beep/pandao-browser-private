@@ -47,7 +47,9 @@ type StoredTokens = {
 };
 
 const API_BASE_URL =
-  process.env.PANDAO_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001';
+  process.env.PANDAO_API_BASE_URL ??
+  process.env.VITE_API_BASE_URL ??
+  'https://browser-api.xinhuonianhua.com';
 const emergencyStorageTypes = ['cookies', 'localstorage', 'indexdb'] as const;
 let emergencyWsClient: EmergencyWsClient | null = null;
 
