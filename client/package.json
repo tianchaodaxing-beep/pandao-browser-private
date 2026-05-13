@@ -15,10 +15,12 @@
     "dist:portable": "npm run build && electron-builder --win portable --x64"
   },
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.17.10",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
@@ -47,7 +49,9 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build-resources/icon.png",

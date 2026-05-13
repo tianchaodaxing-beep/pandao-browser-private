@@ -17,7 +17,7 @@ function rowsToIds(rows: QueryResultRow[]) {
   return rows.map((row) => Number(row.id));
 }
 
-async function ensureTargetExists(table: 'teams' | 'users' | 'shops', targetId: number, db: EmergencyDb) {
+async function ensureTargetExists(table: 'teams' | 'users' | 'workspaces', targetId: number, db: EmergencyDb) {
   const result = await db.query(`SELECT id FROM ${table} WHERE id = $1 LIMIT 1`, [targetId]);
   return Boolean(result.rowCount);
 }
@@ -70,7 +70,7 @@ export async function listAffectedUsersByEmployee(userId: number, db = dbOrDefau
 }
 
 export async function listAffectedUsersByShop(shopId: number, db = dbOrDefault()): Promise<number[] | null> {
-  const exists = await ensureTargetExists('shops', shopId, db);
+  const exists = await ensureTargetExists('workspaces', shopId, db);
   if (!exists) {
     return null;
   }
@@ -79,7 +79,7 @@ export async function listAffectedUsersByShop(shopId: number, db = dbOrDefault()
     `SELECT DISTINCT u.id
      FROM users u
      LEFT JOIN shop_assignments sa ON sa.user_id = u.id AND sa.shop_id = $1
-     LEFT JOIN shops s ON s.id = $1
+     LEFT JOIN workspaces s ON s.id = $1
      LEFT JOIN teams t ON t.id = s.team_id
      WHERE u.status = 'active'
        AND (sa.user_id IS NOT NULL OR u.id = t.manager_id)

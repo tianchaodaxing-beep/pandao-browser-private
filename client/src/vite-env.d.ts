@@ -15,11 +15,24 @@ import type {
   ProxyBindResponse,
   ProxyListResponse,
   ProxyUnbindResponse,
+  ExtensionInstallRequest,
+  ExtensionInstallResponse,
+  ExtensionListResponse,
   ShopCreateRequest,
   ShopCreateResponse,
   ShopListResponse,
   ShopOpenResponse,
-  UnlockResponse
+  UnlockResponse,
+  WorkspaceCategoriesResponse,
+  WorkspaceCreateRequest,
+  WorkspaceCreateResponse,
+  WorkspaceDetachResponse,
+  WorkspaceExtensionBindResponse,
+  WorkspaceExtensionsResponse,
+  WorkspaceListResponse,
+  WorkspaceUpdateRequest,
+  WorkspaceUpdateResponse,
+  WorkspaceViewBounds
 } from 'shared';
 
 declare global {
@@ -46,6 +59,33 @@ declare global {
         create: (request: ShopCreateRequest) => Promise<ShopCreateResponse>;
         open: (shopId: number) => Promise<ShopOpenResponse>;
         close: (shopId: number) => Promise<void>;
+      };
+      workspaces: {
+        list: () => Promise<WorkspaceListResponse>;
+        categories: () => Promise<WorkspaceCategoriesResponse>;
+        create: (request: WorkspaceCreateRequest) => Promise<WorkspaceCreateResponse>;
+        update: (workspaceId: number, request: WorkspaceUpdateRequest) => Promise<WorkspaceUpdateResponse>;
+        activate: (workspaceId: number) => Promise<ShopOpenResponse>;
+        detach: (workspaceId: number) => Promise<WorkspaceDetachResponse>;
+        close: (workspaceId: number) => Promise<void>;
+        reload: (workspaceId: number) => Promise<void>;
+        openDevTools: (workspaceId: number) => Promise<void>;
+        setViewBounds: (bounds: WorkspaceViewBounds) => Promise<void>;
+      };
+      extensions: {
+        list: () => Promise<ExtensionListResponse>;
+        installFile: (
+          fileName: string,
+          bytes: Uint8Array,
+          sourceType: 'crx' | 'zip',
+          name?: string | null
+        ) => Promise<ExtensionInstallResponse>;
+        installGithub: (request: ExtensionInstallRequest) => Promise<ExtensionInstallResponse>;
+        uninstall: (extensionId: string) => Promise<{ ok: true }>;
+        toggle: (extensionId: string, enabled: boolean) => Promise<ExtensionInstallResponse>;
+        listForWorkspace: (workspaceId: number) => Promise<WorkspaceExtensionsResponse>;
+        bind: (workspaceId: number, extensionId: string) => Promise<WorkspaceExtensionBindResponse>;
+        unbind: (workspaceId: number, extensionId: string) => Promise<{ ok: true }>;
       };
       ai: {
         wsUrl: () => Promise<string>;

@@ -6,7 +6,7 @@ export * from './credentials.js';
 export * from './emergency.js';
 export * from './fingerprint.js';
 export * from './proxies.js';
-export * from './shops.js';
+export * from './workspaces.js';
 
 export type HealthResponse = {
   status: 'ok';

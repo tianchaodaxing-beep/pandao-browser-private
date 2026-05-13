@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { RefreshResponse, Shop, ShopListResponse } from 'shared';
+import type { RefreshResponse, Shop, ShopListResponse, WorkspaceListResponse } from 'shared';
 
 type StoredTokens = {
   token: string;
@@ -132,14 +132,18 @@ export async function requestAuthedJson<T>(urlPath: string, init: RequestInit = 
 }
 
 export async function listShops(): Promise<Shop[]> {
-  const result = await requestAuthedJson<ShopListResponse>('/shops');
-  return result.shops;
+  const result = await requestAuthedJson<WorkspaceListResponse & Partial<ShopListResponse>>('/workspaces');
+  return result.workspaces ?? result.shops ?? [];
 }
 
 export async function getShop(shopId: number): Promise<Shop> {
   try {
-    const result = await requestAuthedJson<{ shop: Shop }>(`/shops/${shopId}`);
-    return result.shop;
+    const result = await requestAuthedJson<{ workspace?: Shop; shop?: Shop }>(`/workspaces/${shopId}`);
+    const shop = result.workspace ?? result.shop;
+    if (!shop) {
+      throw new Error('工作区不存在');
+    }
+    return shop;
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 503 && error.code === 'LOCKED') {
       const shops = await listShops();

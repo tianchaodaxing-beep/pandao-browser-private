@@ -23,14 +23,14 @@ function buildProxyRules(proxy: ShopProxyDto) {
 }
 
 async function getShopProxy(shopId: number) {
-  const result = await requestAuthedJson<ShopProxyResponse>(`/shops/${shopId}/proxy`, {
+  const result = await requestAuthedJson<ShopProxyResponse>(`/workspaces/${shopId}/proxy`, {
     method: 'GET'
   });
   return result.proxy;
 }
 
 async function getProxyCredential(shopId: number) {
-  return requestAuthedJson<ProxyCredentialResponse>(`/shops/${shopId}/proxy-credential`, {
+  return requestAuthedJson<ProxyCredentialResponse>(`/workspaces/${shopId}/proxy-credential`, {
     method: 'GET'
   });
 }

@@ -45,7 +45,7 @@ function makeEmergencyDb(): EmergencyDb {
         return { rowCount: rows.length, rows };
       }
 
-      if (sql.includes('SELECT id FROM shops')) {
+      if (sql.includes('SELECT id FROM workspaces')) {
         const rows = shops.filter((shop) => shop.id === targetId).map((shop) => ({ id: shop.id }));
         return { rowCount: rows.length, rows };
       }

@@ -1,18 +1,18 @@
-import type { BrowserWindow } from 'electron';
+import type { WebContents } from 'electron';
 import type { Shop } from 'shared';
 import { getActionSelectors } from './api-client.js';
 import { injectActionRecorder } from './injector.js';
 
-export function scheduleActionRecorder(shopWindow: BrowserWindow, shop: Shop) {
+export function scheduleActionRecorder(webContents: WebContents, shop: Shop) {
   setTimeout(() => {
-    if (shopWindow.isDestroyed()) {
+    if (webContents.isDestroyed()) {
       return;
     }
 
     void (async () => {
       try {
         const selectors = await getActionSelectors(shop.id);
-        const result = await injectActionRecorder(shopWindow.webContents, shop.id, selectors);
+        const result = await injectActionRecorder(webContents, shop.id, selectors);
         if (result.attached) {
           console.log(`[action-recorder] listener attached, shop=${shop.id}`);
         }

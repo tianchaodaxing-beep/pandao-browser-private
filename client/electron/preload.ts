@@ -5,9 +5,14 @@ import type {
   LockoutRequest,
   LoginRequest,
   ProxyBatchRequest,
+  ExtensionInstallRequest,
   ShopCloseRequest,
   ShopCreateRequest,
-  ShopOpenRequest
+  ShopOpenRequest,
+  WorkspaceCreateRequest,
+  WorkspaceDetachRequest,
+  WorkspaceUpdateRequest,
+  WorkspaceViewBounds
 } from 'shared';
 
 contextBridge.exposeInMainWorld('pandao', {
@@ -36,6 +41,30 @@ contextBridge.exposeInMainWorld('pandao', {
     create: (request: ShopCreateRequest) => ipcRenderer.invoke('shops.create', request),
     open: (shopId: number) => ipcRenderer.invoke('shops.open', { shopId } satisfies ShopOpenRequest),
     close: (shopId: number) => ipcRenderer.invoke('shops.close', { shopId } satisfies ShopCloseRequest)
+  },
+  workspaces: {
+    list: () => ipcRenderer.invoke('workspaces.list'),
+    categories: () => ipcRenderer.invoke('workspaces.categories'),
+    create: (request: WorkspaceCreateRequest) => ipcRenderer.invoke('workspaces.create', request),
+    update: (workspaceId: number, request: WorkspaceUpdateRequest) =>
+      ipcRenderer.invoke('workspaces.update', { ...request, workspaceId }),
+    activate: (workspaceId: number) => ipcRenderer.invoke('workspaces.activate', { workspaceId }),
+    detach: (workspaceId: number) => ipcRenderer.invoke('workspaces.detach', { workspaceId } satisfies WorkspaceDetachRequest),
+    close: (workspaceId: number) => ipcRenderer.invoke('workspaces.close', workspaceId),
+    reload: (workspaceId: number) => ipcRenderer.invoke('workspaces.reload', workspaceId),
+    openDevTools: (workspaceId: number) => ipcRenderer.invoke('workspaces.openDevTools', workspaceId),
+    setViewBounds: (bounds: WorkspaceViewBounds) => ipcRenderer.invoke('workspaces.setViewBounds', bounds)
+  },
+  extensions: {
+    list: () => ipcRenderer.invoke('extensions.list'),
+    installFile: (fileName: string, bytes: Uint8Array, sourceType: 'crx' | 'zip', name?: string | null) =>
+      ipcRenderer.invoke('extensions.installFile', { fileName, bytes: Array.from(bytes), sourceType, name }),
+    installGithub: (request: ExtensionInstallRequest) => ipcRenderer.invoke('extensions.installGithub', request),
+    uninstall: (extensionId: string) => ipcRenderer.invoke('extensions.uninstall', extensionId),
+    toggle: (extensionId: string, enabled: boolean) => ipcRenderer.invoke('extensions.toggle', extensionId, enabled),
+    listForWorkspace: (workspaceId: number) => ipcRenderer.invoke('extensions.listForWorkspace', workspaceId),
+    bind: (workspaceId: number, extensionId: string) => ipcRenderer.invoke('extensions.bind', workspaceId, extensionId),
+    unbind: (workspaceId: number, extensionId: string) => ipcRenderer.invoke('extensions.unbind', workspaceId, extensionId)
   },
   ai: {
     wsUrl: () => ipcRenderer.invoke('ai.wsUrl'),

@@ -14,10 +14,12 @@ import { authRoutes } from './modules/auth/routes.js';
 import { credentialsRoutes, shopCredentialTokenRoutes } from './modules/credentials/routes.js';
 import { clearExpired } from './modules/emergency/blacklist.js';
 import { emergencyRoutes } from './modules/emergency/routes.js';
+import { extensionsRoutes } from './modules/extensions/routes.js';
 import { proxiesRoutes } from './modules/proxies/routes.js';
 import { shopsRoutes } from './modules/shops/routes.js';
 import { teamsRoutes } from './modules/teams/routes.js';
 import { usersRoutes } from './modules/users/routes.js';
+import { workspacesRoutes } from './modules/workspaces/routes.js';
 import { registerJwt } from './plugins/jwt.js';
 import { wsRoutes } from './ws/plugin.js';
 
@@ -60,7 +62,7 @@ export function buildServer() {
 
   void app.register(multipart, {
     limits: {
-      fileSize: 4 * 1024 * 1024
+      fileSize: 64 * 1024 * 1024
     }
   });
 
@@ -72,12 +74,19 @@ export function buildServer() {
   void app.register(adminRoutes, {
     prefix: '/admin'
   });
+  void app.register(workspacesRoutes, {
+    prefix: '/workspaces'
+  });
   void app.register(shopsRoutes, {
     prefix: '/shops'
   });
   void app.register(shopCredentialTokenRoutes, {
+    prefix: '/workspaces'
+  });
+  void app.register(shopCredentialTokenRoutes, {
     prefix: '/shops'
   });
+  void app.register(extensionsRoutes);
   void app.register(proxiesRoutes, {
     prefix: '/proxies'
   });

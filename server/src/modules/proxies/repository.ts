@@ -241,7 +241,7 @@ export async function bindProxyToShop(proxyId: number, shopId: number): Promise<
 
     const shopResult = await client.query(
       `SELECT id, proxy_id
-       FROM shops
+       FROM workspaces
        WHERE id = $1
          AND status = 'active'
        FOR UPDATE`,
@@ -308,7 +308,7 @@ export async function unbindProxy(proxyId: number): Promise<boolean> {
     }
 
     await client.query(
-      `UPDATE shops
+      `UPDATE workspaces
        SET proxy_id = NULL
        WHERE proxy_id = $1`,
       [proxyId]
@@ -342,7 +342,7 @@ export async function findShopProxy(shopId: number): Promise<ShopProxyDto | null
        p.country,
        p.city,
        p.password_encrypted IS NOT NULL AS has_password
-     FROM shops s
+     FROM workspaces s
      JOIN proxies p ON p.id = s.proxy_id
      WHERE s.id = $1
        AND s.status = 'active'
@@ -356,7 +356,7 @@ export async function findShopProxy(shopId: number): Promise<ShopProxyDto | null
 export async function findProxyCredentialSecretForShop(shopId: number): Promise<ProxyCredentialSecret | null> {
   const result = await getDbPool().query(
     `SELECT p.username, p.password_encrypted, p.password_iv, p.password_tag
-     FROM shops s
+     FROM workspaces s
      JOIN proxies p ON p.id = s.proxy_id
      WHERE s.id = $1
        AND s.status = 'active'

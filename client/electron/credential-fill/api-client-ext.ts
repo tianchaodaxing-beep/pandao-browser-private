@@ -6,7 +6,7 @@ import type {
 import { requestAuthedJson } from '../browser-engine/api-client.js';
 
 export async function requestCredentialToken(shopId: number): Promise<CredentialTokenResponse> {
-  return requestAuthedJson<CredentialTokenResponse>(`/shops/${shopId}/credential-token`, {
+  return requestAuthedJson<CredentialTokenResponse>(`/workspaces/${shopId}/credential-token`, {
     method: 'GET'
   });
 }

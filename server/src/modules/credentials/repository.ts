@@ -52,7 +52,7 @@ export async function consumeCredentialToken(jti: string, userId: number, shopId
 export async function activeShopExists(shopId: number) {
   const result = await getDbPool().query(
     `SELECT id
-     FROM shops
+     FROM workspaces
      WHERE id = $1
        AND status = 'active'
      LIMIT 1`,

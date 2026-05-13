@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, session } from 'electron';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
@@ -19,24 +20,44 @@ import type {
   ProxyListResponse,
   ProxyUnbindResponse,
   RefreshResponse,
+  ExtensionInstallRequest,
+  ExtensionInstallResponse,
+  ExtensionListResponse,
   ShopCloseRequest,
   ShopCreateRequest,
   ShopCreateResponse,
   ShopListResponse,
   ShopOpenRequest,
   ShopOpenResponse,
-  UnlockResponse
+  UnlockResponse,
+  WorkspaceCategoriesResponse,
+  WorkspaceCreateRequest,
+  WorkspaceCreateResponse,
+  WorkspaceDetachRequest,
+  WorkspaceDetachResponse,
+  WorkspaceExtensionBindResponse,
+  WorkspaceExtensionsResponse,
+  WorkspaceListResponse,
+  WorkspaceUpdateRequest,
+  WorkspaceUpdateResponse,
+  WorkspaceViewBounds
 } from 'shared';
 import { executeAiTask } from './ai-bridge/executor.js';
 import { registerActionRecorderHandlers } from './action-recorder/main-bridge.js';
 import { ApiRequestError, getShop, listShops } from './browser-engine/api-client.js';
 import {
   ShopProxyOpenError,
+  activateWorkspace,
+  attachWorkspaceHostWindow,
   clearAllShopStorageData,
   closeAllShopWindows,
   closeShop,
+  detachWorkspace,
+  openWorkspaceDevTools,
   openShop
 } from './browser-engine/window-manager.js';
+import { installCrx, installFromGithub, installZip, type InstalledExtensionFiles } from './extension-engine/loader.js';
+import { reloadWorkspace, setWorkspaceViewBounds } from './workspace-engine/window-manager.js';
 import { EmergencyWsClient, buildWsUrl } from './ws/client.js';
 
 app.setName('pandao-browser');
@@ -93,10 +114,11 @@ async function clearStoredTokens() {
 }
 
 async function apiJson<T>(urlPath: string, init: RequestInit = {}): Promise<T> {
+  const isFormDataBody = typeof FormData !== 'undefined' && init.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${urlPath}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
       ...init.headers
     }
   });
@@ -366,7 +388,7 @@ ipcMain.handle('shops.list', async (): Promise<ShopListResponse> => {
 });
 
 ipcMain.handle('shops.create', async (_event, request: ShopCreateRequest): Promise<ShopCreateResponse> => {
-  return apiAuthedJson<ShopCreateResponse>('/shops', {
+  return apiAuthedJson<ShopCreateResponse>('/workspaces', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -401,6 +423,173 @@ ipcMain.handle('shops.open', async (_event, request: ShopOpenRequest): Promise<S
 
 ipcMain.handle('shops.close', async (_event, request: ShopCloseRequest): Promise<void> => {
   closeShop(request.shopId);
+});
+
+ipcMain.handle('workspaces.list', async (): Promise<WorkspaceListResponse> => {
+  return { workspaces: await listShops() };
+});
+
+ipcMain.handle('workspaces.categories', async (): Promise<WorkspaceCategoriesResponse> => {
+  return apiAuthedJson<WorkspaceCategoriesResponse>('/workspaces/categories', {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('workspaces.create', async (_event, request: WorkspaceCreateRequest): Promise<WorkspaceCreateResponse> => {
+  return apiAuthedJson<WorkspaceCreateResponse>('/workspaces', {
+    method: 'POST',
+    body: JSON.stringify(request)
+  });
+});
+
+ipcMain.handle(
+  'workspaces.update',
+  async (_event, request: WorkspaceUpdateRequest & { workspaceId: number }): Promise<WorkspaceUpdateResponse> => {
+    return apiAuthedJson<WorkspaceUpdateResponse>(`/workspaces/${request.workspaceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(request)
+    });
+  }
+);
+
+ipcMain.handle('workspaces.activate', async (_event, request: { workspaceId: number }): Promise<ShopOpenResponse> => {
+  const workspace = await getShop(request.workspaceId);
+  return activateWorkspace(workspace);
+});
+
+ipcMain.handle('workspaces.detach', async (_event, request: WorkspaceDetachRequest): Promise<WorkspaceDetachResponse> => {
+  return detachWorkspace(request.workspaceId);
+});
+
+ipcMain.handle('workspaces.close', async (_event, workspaceId: number): Promise<void> => {
+  closeShop(workspaceId);
+});
+
+ipcMain.handle('workspaces.reload', async (_event, workspaceId: number): Promise<void> => {
+  reloadWorkspace(workspaceId);
+});
+
+ipcMain.handle('workspaces.openDevTools', async (_event, workspaceId: number): Promise<void> => {
+  openWorkspaceDevTools(workspaceId);
+});
+
+ipcMain.handle('workspaces.setViewBounds', async (_event, bounds: WorkspaceViewBounds): Promise<void> => {
+  setWorkspaceViewBounds(bounds);
+});
+
+type ExtensionFileInstallRequest = {
+  fileName: string;
+  bytes: number[];
+  sourceType: 'crx' | 'zip';
+  name?: string | null;
+};
+
+function getLocalExtensionDir(extensionId: string) {
+  return path.join(app.getPath('userData'), 'extensions', extensionId);
+}
+
+function extensionDisplayName(installed: InstalledExtensionFiles, fallback?: string | null) {
+  return fallback?.trim() || installed.manifest.name?.trim() || 'Chrome Extension';
+}
+
+async function registerLocalExtension(input: {
+  installed: InstalledExtensionFiles;
+  name?: string | null;
+  sourceUrl?: string | null;
+}) {
+  return apiAuthedJson<ExtensionInstallResponse>('/extensions', {
+    method: 'POST',
+    body: JSON.stringify({
+      source_type: 'manual',
+      source_url: input.sourceUrl ?? null,
+      name: extensionDisplayName(input.installed, input.name),
+      version: input.installed.manifest.version ?? null,
+      installed_path: input.installed.installedPath
+    })
+  });
+}
+
+ipcMain.handle('extensions.list', async (): Promise<ExtensionListResponse> => {
+  return apiAuthedJson<ExtensionListResponse>('/extensions', {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('extensions.installFile', async (_event, request: ExtensionFileInstallRequest): Promise<ExtensionInstallResponse> => {
+  const extensionId = crypto.randomUUID();
+  const targetDir = getLocalExtensionDir(extensionId);
+  const tempFile = path.join(app.getPath('temp'), `${extensionId}-${request.fileName}`);
+
+  try {
+    await fs.writeFile(tempFile, Buffer.from(request.bytes));
+    const installed = request.sourceType === 'crx'
+      ? await installCrx(tempFile, targetDir)
+      : await installZip(tempFile, targetDir);
+    return registerLocalExtension({ installed, name: request.name, sourceUrl: request.fileName });
+  } catch (error) {
+    await fs.rm(targetDir, { recursive: true, force: true });
+    throw error;
+  } finally {
+    await fs.rm(tempFile, { force: true });
+  }
+});
+
+ipcMain.handle('extensions.installGithub', async (_event, request: ExtensionInstallRequest): Promise<ExtensionInstallResponse> => {
+  const sourceUrl = request.sourceUrl?.trim();
+  if (!sourceUrl) {
+    throw new Error('GitHub repo URL 不能为空');
+  }
+
+  const extensionId = crypto.randomUUID();
+  const targetDir = getLocalExtensionDir(extensionId);
+
+  try {
+    const installed = await installFromGithub(sourceUrl, targetDir);
+    return registerLocalExtension({ installed, name: request.name, sourceUrl });
+  } catch (error) {
+    await fs.rm(targetDir, { recursive: true, force: true });
+    throw error;
+  }
+});
+
+ipcMain.handle('extensions.uninstall', async (_event, extensionId: string): Promise<{ ok: true }> => {
+  const existing = await apiAuthedJson<ExtensionListResponse>('/extensions', {
+    method: 'GET'
+  });
+  const localExtension = existing.extensions.find((extension) => extension.id === extensionId);
+  const result = await apiAuthedJson<{ ok: true }>(`/extensions/${extensionId}`, {
+    method: 'DELETE'
+  });
+  if (localExtension) {
+    await fs.rm(localExtension.installedPath, { recursive: true, force: true });
+  }
+  return result;
+});
+
+ipcMain.handle('extensions.toggle', async (_event, extensionId: string, enabled: boolean): Promise<ExtensionInstallResponse> => {
+  return apiAuthedJson<ExtensionInstallResponse>(`/extensions/${extensionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled })
+  });
+});
+
+ipcMain.handle('extensions.listForWorkspace', async (_event, workspaceId: number): Promise<WorkspaceExtensionsResponse> => {
+  return apiAuthedJson<WorkspaceExtensionsResponse>(`/workspaces/${workspaceId}/extensions`, {
+    method: 'GET'
+  });
+});
+
+ipcMain.handle('extensions.bind', async (_event, workspaceId: number, extensionId: string): Promise<WorkspaceExtensionBindResponse> => {
+  return apiAuthedJson<WorkspaceExtensionBindResponse>(`/workspaces/${workspaceId}/extensions`, {
+    method: 'POST',
+    body: JSON.stringify({ extensionId })
+  });
+});
+
+ipcMain.handle('extensions.unbind', async (_event, workspaceId: number, extensionId: string): Promise<{ ok: true }> => {
+  return apiAuthedJson<{ ok: true }>(`/workspaces/${workspaceId}/extensions/${extensionId}`, {
+    method: 'DELETE'
+  });
 });
 
 ipcMain.handle('ai.wsUrl', async (): Promise<string> => {
@@ -463,6 +652,7 @@ function createMainWindow() {
       nodeIntegration: false
     }
   });
+  attachWorkspaceHostWindow(mainWindow);
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 

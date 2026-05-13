@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
-import type { AuthUser, LoginRequest } from 'shared';
+import { useEffect, useRef, useState } from 'react';
+import type { AuthUser, LoginRequest, Workspace } from 'shared';
+import { Sidebar, type AppView } from './components/Sidebar';
+import { WorkspaceInfoBar } from './components/WorkspaceInfoBar';
 import { EmergencyPage } from './pages/admin/emergency/EmergencyPage';
-import { roleLabels } from './modules/auth/roleLabels';
 import { ProxiesPage } from './pages/admin/proxies/ProxiesPage';
 import { UnlockPage } from './pages/admin/unlock/UnlockPage';
 import { AiTaskPanel } from './pages/ai/AiTaskPanel';
+import { ExtensionsPage } from './pages/extensions/ExtensionsPage';
 import { LoginPage } from './pages/login/LoginPage';
 import { ApprovalsPage } from './pages/manager/ApprovalsPage';
-import { ShopsPage } from './pages/shops/ShopsPage';
+import { WorkspaceList } from './pages/workspaces/WorkspaceList';
 
 type AuthState =
   | { state: 'loading' }
@@ -16,8 +18,13 @@ type AuthState =
 
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ state: 'loading' });
-  const [view, setView] = useState<'shops' | 'unlock' | 'proxies' | 'emergency' | 'ai' | 'approvals'>('shops');
+  const [view, setView] = useState<AppView>('workspaces');
   const [submitting, setSubmitting] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspacesLoading, setWorkspacesLoading] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
+  const [workspaceError, setWorkspaceError] = useState('');
+  const browserHostRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -40,11 +47,31 @@ export function App() {
     };
   }, []);
 
+  async function loadWorkspaces() {
+    setWorkspacesLoading(true);
+    setWorkspaceError('');
+    try {
+      const result = await window.pandao?.workspaces.list();
+      setWorkspaces(result?.workspaces ?? []);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : '读取工作区失败');
+    } finally {
+      setWorkspacesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (auth.state === 'authenticated') {
+      void loadWorkspaces();
+    }
+  }, [auth.state]);
+
   useEffect(() => {
     const unsubscribe = window.pandao?.admin.onEmergencyLockout((payload) => {
-      const message = `应急下线:${payload.reason}`;
+      const message = `应急下线: ${payload.reason}`;
       window.alert(message);
-      setView('shops');
+      setActiveWorkspace(null);
+      setView('workspaces');
       setAuth({ state: 'anonymous', error: message });
     });
 
@@ -52,6 +79,33 @@ export function App() {
       unsubscribe?.();
     };
   }, []);
+
+  useEffect(() => {
+    const element = browserHostRef.current;
+    if (!element || !activeWorkspace || view !== 'workspaces') {
+      return;
+    }
+
+    const sendBounds = () => {
+      const rect = element.getBoundingClientRect();
+      void window.pandao?.workspaces.setViewBounds({
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height
+      });
+    };
+
+    sendBounds();
+    const observer = new ResizeObserver(sendBounds);
+    observer.observe(element);
+    window.addEventListener('resize', sendBounds);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', sendBounds);
+    };
+  }, [activeWorkspace, view]);
 
   async function handleLogin(credentials: LoginRequest) {
     setSubmitting(true);
@@ -71,14 +125,38 @@ export function App() {
   }
 
   async function handleLogout() {
+    if (activeWorkspace) {
+      await window.pandao?.workspaces.close(activeWorkspace.id);
+    }
     await window.pandao?.auth.logout();
+    setActiveWorkspace(null);
     setAuth({ state: 'anonymous', error: null });
+  }
+
+  async function activateWorkspace(workspace: Workspace) {
+    setWorkspaceError('');
+    setView('workspaces');
+    try {
+      setActiveWorkspace(workspace);
+      await window.pandao?.workspaces.activate(workspace.id);
+    } catch (error) {
+      setActiveWorkspace(null);
+      setWorkspaceError(error instanceof Error ? error.message : '激活工作区失败');
+    }
+  }
+
+  function changeView(nextView: AppView) {
+    if (activeWorkspace && nextView !== 'workspaces') {
+      void window.pandao?.workspaces.close(activeWorkspace.id);
+      setActiveWorkspace(null);
+    }
+    setView(nextView);
   }
 
   if (auth.state === 'loading') {
     return (
-      <main className="app-shell">
-        <section className="workspace loading-panel">
+      <main className="loading-shell">
+        <section className="loading-panel">
           <p className="eyebrow">PANDAO Browser</p>
           <h1>正在读取登录态</h1>
         </section>
@@ -96,48 +174,53 @@ export function App() {
   const canApproveAiTasks = auth.user.role === 'manager' || auth.user.role === 'boss';
 
   return (
-    <main className="app-shell">
-      <section className="workspace">
-        <div>
-          <p className="eyebrow">PANDAO 浏览器</p>
-          <h1>内部浏览器工作台</h1>
-          <p className="summary">
-            当前用户:{auth.user.displayName ?? auth.user.username}({roleLabels[auth.user.role]})
-          </p>
-          <div className="toolbar">
-            <button className={view === 'shops' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('shops')}>
-              店铺列表
-            </button>
-            <button className={view === 'unlock' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('unlock')}>
-              主密钥
-            </button>
-            {canManageProxies ? (
-              <button className={view === 'proxies' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('proxies')}>
-                代理 IP
-              </button>
-            ) : null}
-            {canTriggerEmergency ? (
-              <button className={view === 'emergency' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('emergency')}>
-                应急
-              </button>
-            ) : null}
-            {canReceiveAiTasks ? (
-              <button className={view === 'ai' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('ai')}>
-                AI 任务
-              </button>
-            ) : null}
-            {canApproveAiTasks ? (
-              <button className={view === 'approvals' ? 'secondary-button active' : 'secondary-button'} type="button" onClick={() => setView('approvals')}>
-                审批
-              </button>
-            ) : null}
-            <button className="secondary-button ghost" type="button" onClick={handleLogout}>
-              退出登录
-            </button>
-          </div>
-        </div>
-        {view === 'shops' ? <ShopsPage /> : null}
-        {view === 'unlock' ? <UnlockPage user={auth.user} onUnlocked={() => setView('shops')} /> : null}
+    <main className="desktop-shell">
+      <Sidebar
+        user={auth.user}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspace?.id ?? null}
+        view={view}
+        canManageProxies={canManageProxies}
+        canTriggerEmergency={canTriggerEmergency}
+        canReceiveAiTasks={canReceiveAiTasks}
+        canApproveAiTasks={canApproveAiTasks}
+        onViewChange={changeView}
+        onActivateWorkspace={(workspace) => void activateWorkspace(workspace)}
+        onRefresh={() => void loadWorkspaces()}
+        onLogout={() => void handleLogout()}
+      />
+
+      <section className="main-workbench">
+        {view === 'workspaces' ? (
+          <>
+            <WorkspaceInfoBar
+              workspace={activeWorkspace}
+              onDetach={() => activeWorkspace && void window.pandao?.workspaces.detach(activeWorkspace.id)}
+              onClose={() => {
+                if (activeWorkspace) {
+                  void window.pandao?.workspaces.close(activeWorkspace.id);
+                  setActiveWorkspace(null);
+                }
+              }}
+              onReload={() => activeWorkspace && void window.pandao?.workspaces.reload(activeWorkspace.id)}
+              onOpenDevTools={() => activeWorkspace && void window.pandao?.workspaces.openDevTools(activeWorkspace.id)}
+            />
+            {workspaceError ? <p className="form-error">{workspaceError}</p> : null}
+            <div className={activeWorkspace ? 'browser-host active' : 'browser-host'} ref={browserHostRef}>
+              {!activeWorkspace ? (
+                <WorkspaceList
+                  workspaces={workspaces}
+                  loading={workspacesLoading}
+                  onCreated={() => void loadWorkspaces()}
+                  onActivate={(workspace) => void activateWorkspace(workspace)}
+                />
+              ) : null}
+            </div>
+          </>
+        ) : null}
+
+        {view === 'extensions' ? <ExtensionsPage workspaces={workspaces} /> : null}
+        {view === 'unlock' ? <UnlockPage user={auth.user} onUnlocked={() => setView('workspaces')} /> : null}
         {view === 'proxies' && canManageProxies ? <ProxiesPage /> : null}
         {view === 'emergency' && canTriggerEmergency ? <EmergencyPage /> : null}
         {view === 'ai' && canReceiveAiTasks ? <AiTaskPanel user={auth.user} /> : null}

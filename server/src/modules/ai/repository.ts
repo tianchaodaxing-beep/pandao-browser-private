@@ -147,7 +147,7 @@ export async function listPendingApprovalTasksForUser(userId: number, role: Role
        task.approval_required, task.assigned_to, task.result, task.created_at, task.approved_at,
        task.executed_at, task.escalated_at
      FROM ai_tasks task
-     JOIN shops s ON s.id = task.shop_id
+     JOIN workspaces s ON s.id = task.shop_id
      JOIN teams t ON t.id = s.team_id
      WHERE task.status = 'pending'
        AND task.approval_required = TRUE
@@ -225,7 +225,7 @@ export async function completeAssignedAiTask(
 export async function findActiveShop(shopId: number): Promise<ShopSummary | null> {
   const result = await getDbPool().query(
     `SELECT id, name
-     FROM shops
+     FROM workspaces
      WHERE id = $1
        AND status = 'active'
      LIMIT 1`,
@@ -253,7 +253,7 @@ export async function canUserManageShop(userId: number, role: Role, shopId: numb
 
   const result = await getDbPool().query(
     `SELECT 1
-     FROM shops s
+     FROM workspaces s
      JOIN teams t ON t.id = s.team_id
      WHERE s.id = $1
        AND t.manager_id = $2
@@ -308,7 +308,7 @@ export async function findDispatchCandidates(shopId: number): Promise<DispatchCa
 
   const managers = await getDbPool().query(
     `SELECT u.id, u.role
-     FROM shops s
+     FROM workspaces s
      JOIN teams t ON t.id = s.team_id
      JOIN users u ON u.id = t.manager_id
      WHERE s.id = $1
@@ -339,7 +339,7 @@ export async function findApprovalRecipients(shopId: number): Promise<DispatchCa
   const recipients = new Map<number, DispatchCandidate>();
   const managerResult = await getDbPool().query(
     `SELECT u.id, u.role
-     FROM shops s
+     FROM workspaces s
      JOIN teams t ON t.id = s.team_id
      JOIN users u ON u.id = t.manager_id
      WHERE s.id = $1

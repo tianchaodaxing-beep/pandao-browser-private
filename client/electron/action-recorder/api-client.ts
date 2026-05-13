@@ -7,7 +7,7 @@ import type {
 import { requestAuthedJson } from '../browser-engine/api-client.js';
 
 export async function getActionSelectors(shopId: number) {
-  const result = await requestAuthedJson<ActionSelectorsResponse>(`/shops/${shopId}/action-selectors`, {
+  const result = await requestAuthedJson<ActionSelectorsResponse>(`/workspaces/${shopId}/action-selectors`, {
     method: 'GET'
   });
   return result.selectors;
