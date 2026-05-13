@@ -25,8 +25,17 @@ function getShopPreloadPath() {
   return path.join(__dirname, 'preload-shop.js');
 }
 
+function normalizeShopUrl(url: string): string {
+  // 用户填的 URL 可能没有 scheme,补 https://
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed.replace(/^\/+/, '')}`;
+}
+
 function getShopUrl(shop: Shop) {
-  return shop.defaultUrl ?? defaultPlatformUrls[shop.platform];
+  const raw = shop.defaultUrl ?? defaultPlatformUrls[shop.platform];
+  return normalizeShopUrl(raw);
 }
 
 function getExistingShopWindow(shopId: number): BrowserWindow | null {

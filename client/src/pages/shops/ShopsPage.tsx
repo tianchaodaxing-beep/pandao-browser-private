@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import type { Shop, ShopPlatform } from 'shared';
+import type { ProxyDto, Shop, ShopPlatform } from 'shared';
 
 const platformOptions: { value: ShopPlatform; label: string }[] = [
   { value: 'naver_smartstore', label: 'Naver 智能商店(스마트스토어)' },
@@ -15,8 +15,10 @@ const platformLabelMap = platformOptions.reduce<Record<ShopPlatform, string>>((a
 
 export function ShopsPage() {
   const [shops, setShops] = useState<Shop[]>([]);
+  const [proxies, setProxies] = useState<ProxyDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [openingShopId, setOpeningShopId] = useState<number | null>(null);
+  const [bindingShopId, setBindingShopId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const [showForm, setShowForm] = useState(false);
@@ -30,10 +32,14 @@ export function ShopsPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await window.pandao?.shops.list();
-      setShops(result?.shops ?? []);
+      const [shopRes, proxyRes] = await Promise.all([
+        window.pandao?.shops.list(),
+        window.pandao?.admin.listProxies()
+      ]);
+      setShops(shopRes?.shops ?? []);
+      setProxies(proxyRes?.proxies ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '读取店铺失败');
+      setError(err instanceof Error ? err.message : '读取失败');
     } finally {
       setLoading(false);
     }
@@ -52,6 +58,32 @@ export function ShopsPage() {
       setError(err instanceof Error ? err.message : '打开店铺失败');
     } finally {
       setOpeningShopId(null);
+    }
+  }
+
+  async function bindProxy(shopId: number, proxyId: number) {
+    setBindingShopId(shopId);
+    setError('');
+    try {
+      await window.pandao?.admin.bindProxy(proxyId, shopId);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '绑定代理失败');
+    } finally {
+      setBindingShopId(null);
+    }
+  }
+
+  async function unbindProxy(shopId: number, proxyId: number) {
+    setBindingShopId(shopId);
+    setError('');
+    try {
+      await window.pandao?.admin.unbindProxy(proxyId);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '解绑代理失败');
+    } finally {
+      setBindingShopId(null);
     }
   }
 
@@ -81,6 +113,11 @@ export function ShopsPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // 可绑定的代理:active 状态、未绑(boundShopId 为 null)或绑给当前店铺
+  function availableProxies(currentShopId: number) {
+    return proxies.filter((p) => p.status === 'active' && (p.boundShopId === null || p.boundShopId === currentShopId));
   }
 
   return (
@@ -146,11 +183,11 @@ export function ShopsPage() {
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
-              <span>默认 URL(可选,留空默认进平台首页)</span>
+              <span>默认 URL(可选,留空默认进平台首页;不用打 https://)</span>
               <input
                 value={formUrl}
                 onChange={(e) => setFormUrl(e.target.value)}
-                placeholder="https://sell.smartstore.naver.com/..."
+                placeholder="wing.coupang.com 或 sell.smartstore.naver.com/..."
                 style={{ padding: '8px', borderRadius: '6px', border: '1px solid #c5cad6' }}
               />
             </label>
@@ -164,42 +201,81 @@ export function ShopsPage() {
               </button>
             </div>
             <p className="summary compact" style={{ color: '#6b7280', fontSize: '12px' }}>
-              提示:建店后请先到"代理 IP"页面绑定一个 IP,然后回这里点"打开店铺"即可启动隔离窗口。账号密码请用主管/老板权限单独录入。
+              提示:建店后请在卡片上「绑代理」选一条 IP,再点「打开店铺」启动隔离窗口。
             </p>
           </form>
         ) : null}
 
-        {loading ? <p className="summary compact">正在读取店铺</p> : null}
+        {loading ? <p className="summary compact">正在读取店铺与代理</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
         {!loading && !error && shops.length === 0 ? (
           <p className="summary compact">还没有店铺。点上方"新建店铺"开始。</p>
         ) : null}
         {shops.length > 0 ? (
           <div className="shop-list">
-            {shops.map((shop) => (
-              <article className="shop-card" key={shop.id}>
-                <div className="shop-card-main">
-                  <h3>{shop.name}</h3>
-                  <p>
-                    #{shop.id} · {platformLabelMap[shop.platform] ?? shop.platform}
-                    {shop.defaultUrl ? ` · ${shop.defaultUrl}` : ''}
-                    {shop.proxyId ? ` · 代理 #${shop.proxyId}` : ' · 未绑定代理'}
-                  </p>
-                </div>
-                <div className="shop-card-actions">
-                  <span>{shop.status === 'active' ? '可用' : '归档'}</span>
-                  <button
-                    className="shop-open-button"
-                    type="button"
-                    title="在独立窗口打开此店铺"
-                    disabled={openingShopId === shop.id}
-                    onClick={() => void openShop(shop.id)}
-                  >
-                    {openingShopId === shop.id ? '打开中' : '打开店铺'}
-                  </button>
-                </div>
-              </article>
-            ))}
+            {shops.map((shop) => {
+              const boundProxy = proxies.find((p) => p.id === shop.proxyId);
+              const candidates = availableProxies(shop.id);
+              return (
+                <article className="shop-card" key={shop.id}>
+                  <div className="shop-card-main">
+                    <h3>{shop.name}</h3>
+                    <p>
+                      #{shop.id} · {platformLabelMap[shop.platform] ?? shop.platform}
+                      {shop.defaultUrl ? ` · ${shop.defaultUrl}` : ''}
+                    </p>
+                    <p style={{ fontSize: '12px', color: boundProxy ? '#0a7a3e' : '#b54708', marginTop: '4px' }}>
+                      {boundProxy
+                        ? `已绑代理 #${boundProxy.id} · ${boundProxy.protocol}://${boundProxy.host}:${boundProxy.port} · ${boundProxy.country}`
+                        : '⚠️ 未绑定代理,打开店铺前必须先绑'}
+                    </p>
+                    <div style={{ marginTop: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {boundProxy ? (
+                        <button
+                          type="button"
+                          className="secondary-button inline"
+                          disabled={bindingShopId === shop.id}
+                          onClick={() => void unbindProxy(shop.id, boundProxy.id)}
+                        >
+                          解绑代理
+                        </button>
+                      ) : (
+                        <select
+                          disabled={bindingShopId === shop.id || candidates.length === 0}
+                          defaultValue=""
+                          onChange={(e) => {
+                            const pid = Number(e.target.value);
+                            if (pid) void bindProxy(shop.id, pid);
+                          }}
+                          style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #c5cad6', fontSize: '12px' }}
+                        >
+                          <option value="" disabled>
+                            {candidates.length === 0 ? '没有空闲代理' : '选一条代理绑定 ↓'}
+                          </option>
+                          {candidates.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              #{p.id} {p.protocol}://{p.host}:{p.port} · {p.country} {p.city ? `(${p.city})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shop-card-actions">
+                    <span>{shop.status === 'active' ? '可用' : '归档'}</span>
+                    <button
+                      className="shop-open-button"
+                      type="button"
+                      title={boundProxy ? '在独立窗口打开此店铺' : '请先绑定代理'}
+                      disabled={openingShopId === shop.id || !boundProxy}
+                      onClick={() => void openShop(shop.id)}
+                    >
+                      {openingShopId === shop.id ? '打开中' : '打开店铺'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : null}
       </div>
