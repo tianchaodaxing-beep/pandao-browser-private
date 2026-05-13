@@ -196,7 +196,9 @@ export async function openShop(shop: Shop): Promise<ShopOpenResponse> {
     throw new ShopProxyOpenError(message);
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  // 只在显式 dev(VITE_DEV_SERVER_URL 存在)时打开 DevTools,避免打包 .exe 里
+  // NODE_ENV 未设置就误弹的问题
+  if (process.env.VITE_DEV_SERVER_URL) {
     shopWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
