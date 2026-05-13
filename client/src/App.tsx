@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AuthUser, LoginRequest, Workspace } from 'shared';
+import type { AuthUser, LoginRequest, ProxyDto, Workspace } from 'shared';
 import { Sidebar, type AppView } from './components/Sidebar';
+import { TopBar } from './components/TopBar';
 import { WorkspaceInfoBar } from './components/WorkspaceInfoBar';
+import { DashboardHome } from './pages/dashboard/DashboardHome';
 import { EmergencyPage } from './pages/admin/emergency/EmergencyPage';
 import { ProxiesPage } from './pages/admin/proxies/ProxiesPage';
 import { UnlockPage } from './pages/admin/unlock/UnlockPage';
@@ -24,7 +26,17 @@ export function App() {
   const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [workspaceError, setWorkspaceError] = useState('');
+  const [proxies, setProxies] = useState<ProxyDto[]>([]);
   const browserHostRef = useRef<HTMLDivElement | null>(null);
+
+  async function loadProxies() {
+    try {
+      const result = await window.pandao?.admin.listProxies();
+      setProxies(result?.proxies ?? []);
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -63,6 +75,7 @@ export function App() {
   useEffect(() => {
     if (auth.state === 'authenticated') {
       void loadWorkspaces();
+      void loadProxies();
     }
   }, [auth.state]);
 
@@ -191,28 +204,39 @@ export function App() {
       />
 
       <section className="main-workbench">
+        <TopBar
+          user={auth.user}
+          workspaces={workspaces}
+          proxiesAvailable={proxies.filter((p) => p.status === 'active' && p.boundShopId === null).length}
+          onRefresh={() => { void loadWorkspaces(); void loadProxies(); }}
+        />
+
         {view === 'workspaces' ? (
           <>
-            <WorkspaceInfoBar
-              workspace={activeWorkspace}
-              onDetach={() => activeWorkspace && void window.pandao?.workspaces.detach(activeWorkspace.id)}
-              onClose={() => {
-                if (activeWorkspace) {
-                  void window.pandao?.workspaces.close(activeWorkspace.id);
-                  setActiveWorkspace(null);
-                }
-              }}
-              onReload={() => activeWorkspace && void window.pandao?.workspaces.reload(activeWorkspace.id)}
-              onOpenDevTools={() => activeWorkspace && void window.pandao?.workspaces.openDevTools(activeWorkspace.id)}
-            />
+            {activeWorkspace ? (
+              <WorkspaceInfoBar
+                workspace={activeWorkspace}
+                onDetach={() => activeWorkspace && void window.pandao?.workspaces.detach(activeWorkspace.id)}
+                onClose={() => {
+                  if (activeWorkspace) {
+                    void window.pandao?.workspaces.close(activeWorkspace.id);
+                    setActiveWorkspace(null);
+                  }
+                }}
+                onReload={() => activeWorkspace && void window.pandao?.workspaces.reload(activeWorkspace.id)}
+                onOpenDevTools={() => activeWorkspace && void window.pandao?.workspaces.openDevTools(activeWorkspace.id)}
+              />
+            ) : null}
             {workspaceError ? <p className="form-error">{workspaceError}</p> : null}
             <div className={activeWorkspace ? 'browser-host active' : 'browser-host'} ref={browserHostRef}>
               {!activeWorkspace ? (
-                <WorkspaceList
+                <DashboardHome
                   workspaces={workspaces}
-                  loading={workspacesLoading}
-                  onCreated={() => void loadWorkspaces()}
+                  proxies={proxies}
                   onActivate={(workspace) => void activateWorkspace(workspace)}
+                  onCreateWorkspace={() => setView('workspaces')}
+                  onGoExtensions={() => changeView('extensions')}
+                  onGoProxies={() => changeView('proxies')}
                 />
               ) : null}
             </div>
