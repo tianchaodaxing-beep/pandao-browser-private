@@ -154,7 +154,8 @@ describe('emergency JWT blacklist', () => {
   });
 
   it('blacklists only active tokens for affected users and clears expired entries', () => {
-    const now = new Date('2026-05-13T00:00:00.000Z');
+    // 锚点必须 > 真实 Date.now(),否则 registerAccessToken 内部 expiresAt<=Date.now() 早退
+    const now = new Date(Date.now() + 60_000);
     const future = new Date(now.getTime() + 60_000);
     registerAccessToken('jti-user-1', 1, future);
     registerAccessToken('jti-user-2', 2, future);
